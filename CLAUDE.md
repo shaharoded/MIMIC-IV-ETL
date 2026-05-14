@@ -73,7 +73,7 @@ One row per `hadm_id`. All values must be numeric (int or float). Boolean fields
 
 ### Required Columns
 
-**Important**: `context_data` must only contain **chronic background disease** present at admission. It must NOT include any condition listed in `complications.json` — those are acute events that will appear in `concept_events` instead.
+**Important**: `context_data` must only contain **chronic background disease** present at admission. Acute diagnosis-derived conditions are emitted as timestamped `concept_events` and must not be duplicated as static context.
 
 | Column | Source | Notes |
 |--------|--------|-------|
@@ -269,7 +269,7 @@ Only use sources that record **actual administration events**, never prescribed/
 |-------------|------------------------------------------------------------------------|
 | `METFORMIN_HOSPITAL_BITZUA` | `metformin` |
 | `ANTIDIABETIC_HOSPITAL_BITZUA` | `glipizide`, `glyburide`, `glimepiride`, `sitagliptin`, `saxagliptin`, `alogliptin`, `linagliptin`, `exenatide`, `liraglutide`, `dulaglutide`, `semaglutide`, `pioglitazone` |
-| `SGLT2_HOSPITAL_BITZUA` | `dapagliflozin`, `canagliflozin`, `empagliflozin`, `ertugliflozin`, `farxiga`, `invokana`, `jardiance` |
+| `SGLT2_HOSPITAL_BITZUA` | `dapagliflozin`, `canagliflozin`, `empagliflozin`, `ertugliflozin`, `farxiga`, `invokana`, `jardiance`, `steglatro`, `synjardy`, `xigduo`, `glyxambi`, `sotagliflozin`, `bexagliflozin` |
 
 #### Antibiotics
 
@@ -306,7 +306,7 @@ Steroid name pattern: `methylprednisolone`, `hydrocortisone`, `dexamethasone`, `
 
 Use the **first occurrence** of a matching code per admission. Timestamp = `admittime` (diagnoses are not timestamped in MIMIC; use admission time as proxy). `Value = "True"`.
 
-These map to `concept_events`, **not** `context_data`. The full list of concepts treated this way is defined in `complications.json`, plus the diagnosis/context concepts below.
+These map to `concept_events`, **not** `context_data`. The active diagnosis-derived event concepts and ICD patterns are defined in the table below and implemented directly in `mimic_pipeline.py`.
 
 > **Always filter by `icd_version`** (9 or 10) before applying a pattern. Most MIMIC-IV admissions use ICD-10.
 
@@ -366,7 +366,7 @@ mimic_pipeline.py
 ```
 
 ### Key Constraints
-1. **ConceptName validation**: the tak-repo JSON is the output contract. If a tak-repo concept has zero emitted rows, print a warning. If the pipeline emits rows for a concept absent from tak-repo, print a warning and auto-omit those rows before writing `concept_events.csv`.
+1. **ConceptName validation and support filtering**: the tak-repo JSON is the output contract. If a tak-repo concept has zero emitted rows, print a warning. If the pipeline emits rows for a concept absent from tak-repo, print a warning and auto-omit those rows before writing `concept_events.csv`. After validation/deduplication, auto-omit concepts with less than 1% patient support and print the omitted concept counts.
 2. **Admission window filtering**: drop any event where `StartDateTime < admittime` or `StartDateTime > max(dischtime, deathtime)`.
 3. **EndDateTime**: always `StartDateTime + pd.Timedelta(seconds=1)`.
 4. **ICD code format**: stored as string without decimal, in both ICD-9 and ICD-10. Always check `icd_version` before applying a pattern.
@@ -410,7 +410,6 @@ mimic-dataset/
 │       ├── icustays.csv.gz
 │       └── ...
 ├── rawconcept-tak-repo-portable.json    ← allowed ConceptName values
-├── complications.json                   ← acute conditions → concept_events (not context_data)
 ├── CLAUDE.md                            ← this file
 ├── mimic_pipeline.py                    ← to be ported MIMIC-III → MIMIC-IV
 └── output/

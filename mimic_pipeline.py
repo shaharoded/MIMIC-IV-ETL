@@ -34,6 +34,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 CHUNK_LAB   = 2_000_000   # labevents.csv.gz is ~2.6GB
 CHUNK_CHART = 5_000_000   # chartevents.csv.gz is ~3.5GB
+MIN_CONCEPT_PATIENT_SUPPORT_PCT = 1.0
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Valid concepts (from tak-repo + extension)
@@ -816,6 +817,20 @@ concept_events = (
 )
 concept_events = filter_window(concept_events)
 concept_events["PatientId"] = concept_events["PatientId"].astype(int)
+
+support = concept_events.groupby("ConceptName")["PatientId"].nunique()
+support_pct = 100.0 * support / len(valid_hadm_set)
+low_support = sorted(support_pct[support_pct < MIN_CONCEPT_PATIENT_SUPPORT_PCT].index.tolist())
+if low_support:
+    print(
+        f"  WARNING: auto-omitting concepts with <{MIN_CONCEPT_PATIENT_SUPPORT_PCT:g}% "
+        "patient support:"
+    )
+    low_counts = concept_events[concept_events["ConceptName"].isin(low_support)].groupby("ConceptName").size()
+    for name in low_support:
+        print(f"    {name}: {support[name]:,} patients, {low_counts[name]:,} rows")
+    concept_events = concept_events[~concept_events["ConceptName"].isin(low_support)].copy()
+
 print(f"  concept_events rows: {len(concept_events):,}")
 
 # ─────────────────────────────────────────────────────────────────────────────
