@@ -1,0 +1,24 @@
+# Local protected / generated data
+mimic-iv/
+mimic-iii-clinical-database-10k/
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local secrets / scratch
+.env
+*.tmp
+*.bak

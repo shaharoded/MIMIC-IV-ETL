@@ -1,0 +1,571 @@
+{
+  "taks": {
+    "ACIDOSIS": {
+      "name": "ACIDOSIS",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "diabetic Acidosis event in hospitalization",
+      "derived_from": null
+    },
+    "ACUTE_RESPIRATORY_DISORDER": {
+      "name": "ACUTE_RESPIRATORY_DISORDER",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the acute respiratory disorder event, inputed from 'Observation'",
+      "derived_from": null
+    },
+    "ADMISSION": {
+      "name": "ADMISSION",
+      "family": "raw-concept",
+      "categories": [
+        "Events"
+      ],
+      "description": "Raw concept to mark the admission event",
+      "derived_from": null
+    },
+    "ALANINE-AMINOTRANSFERASE_MEASURE": {
+      "name": "ALANINE-AMINOTRANSFERASE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of ALANINE-AMINOTRANSFERASE",
+      "derived_from": null
+    },
+    "ALBUMIN_MEASURE": {
+      "name": "ALBUMIN_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of ALBUMIN by serum, for g/dL units",
+      "derived_from": null
+    },
+    "ANTIBIOTIC_IV_BITZUA": {
+      "name": "ANTIBIOTIC_IV_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark antibiotic drugs administration event (IV/SC/IM - more severe)",
+      "derived_from": null
+    },
+    "ANTIBIOTIC_PO_BITZUA": {
+      "name": "ANTIBIOTIC_PO_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark antibiotic drugs administration event (oral - less severe)",
+      "derived_from": null
+    },
+    "ANTIDIABETIC_HOSPITAL_BITZUA": {
+      "name": "ANTIDIABETIC_HOSPITAL_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark antidiabetic PO drugs administration event (in hospital) that have high hypoglycemia risk (used only to monitor if were stopped during the first 3 days or after event)",
+      "derived_from": null
+    },
+    "ASPARATE-AMINOTRANSFERASE_MEASURE": {
+      "name": "ASPARATE-AMINOTRANSFERASE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of ASPARATE-AMINOTRANSFERASE for U/L units",
+      "derived_from": null
+    },
+    "ATHEROSCLEROSIS": {
+      "name": "ATHEROSCLEROSIS",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the atherosclerosis event, inputed from 'Observation'",
+      "derived_from": null
+    },
+    "BASAL_BITZUA": {
+      "name": "BASAL_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to manage the administration of BASAL (long term) insulin, which is SubCutaneous by default",
+      "derived_from": null
+    },
+    "BASE_GLUCOSE_MEASURE": {
+      "name": "BASE_GLUCOSE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage baseline glycemic state as estimated average glucose in mg/dL, derived from HbA1c when available or first in-admission glucose otherwise",
+      "derived_from": null
+    },
+    "BICARBONATE_BITZUA": {
+      "name": "BICARBONATE_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark calcium-bicarbonate administration event (IV only)",
+      "derived_from": null
+    },
+    "BICARBONATE_MEASURE": {
+      "name": "BICARBONATE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of BICARBONATE in units of mmol/l",
+      "derived_from": null
+    },
+    "BLOOD_PRESSURE_DIASTOLIC_MEASURE": {
+      "name": "BLOOD_PRESSURE_DIASTOLIC_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of BLOOD_PRESSURE in DIASTOLIC measure for mmHg units",
+      "derived_from": null
+    },
+    "BLOOD_PRESSURE_SYSTOLIC_MEASURE": {
+      "name": "BLOOD_PRESSURE_SYSTOLIC_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of BLOOD_PRESSURE in SYSTOLIC measure in mmHg units",
+      "derived_from": null
+    },
+    "BMI_MEASURE": {
+      "name": "BMI_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of BMI",
+      "derived_from": null
+    },
+    "BODY_TEMPERATURE_MEASURE": {
+      "name": "BODY_TEMPERATURE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage base BODY TEMPERATURE (units Celsius)",
+      "derived_from": null
+    },
+    "BOLUS_BITZUA": {
+      "name": "BOLUS_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to manage the administration of BOLUS (short term) insulin, assumed to be SubCutaneous by default (many DB mismatches there)",
+      "derived_from": null
+    },
+    "CALCIUM-GLUCONATE_BITZUA": {
+      "name": "CALCIUM-GLUCONATE_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark calcium gluconate administration event",
+      "derived_from": null
+    },
+    "CARDIO-VASCULAR_DISORDER": {
+      "name": "CARDIO-VASCULAR_DISORDER",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark a cardio-vascular disorder event, inputed from 'Observation'",
+      "derived_from": null
+    },
+    "CREATINE-KINASE_MEASURE": {
+      "name": "CREATINE-KINASE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of creatine kinase in Serum (U/L, no MB measurement)",
+      "derived_from": null
+    },
+    "CREATININE_SERUM_MEASURE": {
+      "name": "CREATININE_SERUM_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of CREATININE by Serum using mg/dL units",
+      "derived_from": null
+    },
+    "DEATH": {
+      "name": "DEATH",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the death event",
+      "derived_from": null
+    },
+    "DEXTROSE_BITZUA": {
+      "name": "DEXTROSE_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark dextrose administration event (IV only)",
+      "derived_from": null
+    },
+    "DIABETES_DIAGNOSIS": {
+      "name": "DIABETES_DIAGNOSIS",
+      "family": "raw-concept",
+      "categories": [
+        "Context"
+      ],
+      "description": "Raw concept to mark the diabetes diagnosis event",
+      "derived_from": null
+    },
+    "E-GFR_MEASURE": {
+      "name": "E-GFR_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of E-GFR in units of ml/min/1.73m² or similar. ONLY in available within the data itself, not calculated during ETL",
+      "derived_from": null
+    },
+    "GLUCOSE_MEASURE": {
+      "name": "GLUCOSE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of GLUCOSE in units of mg/dL",
+      "derived_from": null
+    },
+    "HEART_RATE_MEASURE": {
+      "name": "HEART_RATE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of HEART_RATE in units of BpM",
+      "derived_from": null
+    },
+    "HEMATOCRIT_MEASURE": {
+      "name": "HEMATOCRIT_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of HEMATOCRIT in units of %",
+      "derived_from": null
+    },
+    "HEMOGLOBIN_MEASURE": {
+      "name": "HEMOGLOBIN_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of HEMOGLOBIN in units of g/dL",
+      "derived_from": null
+    },
+    "HEPARIN_IV_BITZUA": {
+      "name": "HEPARIN_IV_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark heparin administration event (IV - more severe)",
+      "derived_from": null
+    },
+    "HEPARIN_SC_BITZUA": {
+      "name": "HEPARIN_SC_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark heparin administration event (SC - less severe)",
+      "derived_from": null
+    },
+    "HYPERGLYCEMIA": {
+      "name": "HYPERGLYCEMIA",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the hyperglycemia event, inputed as 'Observation'",
+      "derived_from": null
+    },
+    "HYPEROSMOLALITY": {
+      "name": "HYPEROSMOLALITY",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the hyperosmolality event, inputed as 'Observation'",
+      "derived_from": null
+    },
+    "HYPERTONIC-SALINE_BITZUA": {
+      "name": "HYPERTONIC-SALINE_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark hypertonic saline administration event (IV only)",
+      "derived_from": null
+    },
+    "HYPOGLYCEMIA": {
+      "name": "HYPOGLYCEMIA",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the hypoglycemia event, inputed as 'Observation'",
+      "derived_from": null
+    },
+    "INFECTION": {
+      "name": "INFECTION",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Infection event in hospitalization.",
+      "derived_from": null
+    },
+    "INFECTION_WBC_MEASURE": {
+      "name": "INFECTION_WBC_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of WHITE BLOOD CELLS for infection determination in units of 10³/µL (LEUKOCYTES)",
+      "derived_from": null
+    },
+    "INSULIN_BITZUA": {
+      "name": "INSULIN_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to manage the administration of regular insulin, which is IntraVenous by default",
+      "derived_from": null
+    },
+    "K-BINDER_BITZUA": {
+      "name": "K-BINDER_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark potassium binder administration event (oral/ rectal route)",
+      "derived_from": null
+    },
+    "KETOACIDOSIS": {
+      "name": "KETOACIDOSIS",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the ketoacidosis event, inputed from 'Observation'",
+      "derived_from": null
+    },
+    "KETONES_SERUM_MEASURE": {
+      "name": "KETONES_SERUM_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of KETONES by SERUM in mg/dL units",
+      "derived_from": null
+    },
+    "KETONES_URINE_MEASURE": {
+      "name": "KETONES_URINE_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of KETONES by URINE in mg/dL units",
+      "derived_from": null
+    },
+    "KIDNEY_COMPLICATION": {
+      "name": "KIDNEY_COMPLICATION",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the kidney complication event, inputed from 'Observation', creatinine and e-GFR measures",
+      "derived_from": null
+    },
+    "MEAL": {
+      "name": "MEAL",
+      "family": "raw-concept",
+      "categories": [
+        "Events"
+      ],
+      "description": "Raw concept to manage the assessed meal events in hospitalization",
+      "derived_from": null
+    },
+    "METFORMIN_HOSPITAL_BITZUA": {
+      "name": "METFORMIN_HOSPITAL_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark METFORMIN drugs administration event (at hospital) that have low hypoglycemia risk (but we'll want to monitor this)",
+      "derived_from": null
+    },
+    "NERVOUS_SYSTEM_DISORDER": {
+      "name": "NERVOUS_SYSTEM_DISORDER",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the nervous system disorder event, inputed as 'Observation'",
+      "derived_from": null
+    },
+    "NEUROVASCULAR_COMPLICATION": {
+      "name": "NEUROVASCULAR_COMPLICATION",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the neurovascular complication event, inputed as 'Observation'",
+      "derived_from": null
+    },
+    "NEUTROPHILS_MEASURE": {
+      "name": "NEUTROPHILS_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of Absolute NEUTROPHILS count (ANC) in units of 10e3/uL",
+      "derived_from": null
+    },
+    "PH_MEASURE": {
+      "name": "PH_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of blood PH (units of mmHg or mg/dL)",
+      "derived_from": null
+    },
+    "PLT_MEASURE": {
+      "name": "PLT_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of blood PLT (in units of 10e3/uL)",
+      "derived_from": null
+    },
+    "POTASSIUM_MEASURE": {
+      "name": "POTASSIUM_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of blood POTASSIUM (K⁺) in units of mmol/L",
+      "derived_from": null
+    },
+    "RELEASE": {
+      "name": "RELEASE",
+      "family": "raw-concept",
+      "categories": [
+        "Events"
+      ],
+      "description": "Raw concept to mark the release event",
+      "derived_from": null
+    },
+    "RETINOPATHY": {
+      "name": "RETINOPATHY",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the retinopathy event, inputed from 'Observation'",
+      "derived_from": null
+    },
+    "SGLT2_HOSPITAL_BITZUA": {
+      "name": "SGLT2_HOSPITAL_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark SGLT2 drugs administration event (at hospital, signaling valuable context) that have high hypoglycemia risk (used only to monitor if were stopped during the first 3 days or after event)",
+      "derived_from": null
+    },
+    "SKIN_ULCER": {
+      "name": "SKIN_ULCER",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark the skin ulcer event, inputed from 'Observation'",
+      "derived_from": null
+    },
+    "SODIUM_MEASURE": {
+      "name": "SODIUM_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of SODIUM (Na⁺) by serum/ blood/ plasma in units of mmol/L",
+      "derived_from": null
+    },
+    "STEROIDS_IV_BITZUA": {
+      "name": "STEROIDS_IV_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark steroids administration event (IV - more severe)",
+      "derived_from": null
+    },
+    "STEROIDS_PO_BITZUA": {
+      "name": "STEROIDS_PO_BITZUA",
+      "family": "raw-concept",
+      "categories": [
+        "DrugAdministration"
+      ],
+      "description": "Raw concept to mark steroids administration event (PO - oral route)",
+      "derived_from": null
+    },
+    "TROPONIN_MEASURE": {
+      "name": "TROPONIN_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of TROPONIN in units of ng/L",
+      "derived_from": null
+    },
+    "UREA_MEASURE": {
+      "name": "UREA_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept to manage the measurement of blood/ serum/ plasma UREA in units of mg/dL",
+      "derived_from": null
+    },
+    "WEIGHT_MEASURE": {
+      "name": "WEIGHT_MEASURE",
+      "family": "raw-concept",
+      "categories": [
+        "Measurements"
+      ],
+      "description": "Raw concept for measurement of WEIGHT (in KG), used to assess proper medication dosages",
+      "derived_from": null
+    }
+  }
+}
