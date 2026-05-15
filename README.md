@@ -75,7 +75,38 @@ Current support-filtered concepts:
 
 After local support filtering, the current generated dataset has:
 
-- `57,078` admissions.
-- `21,033,781` temporal event rows.
+- `57,078` admissions/patient timelines.
+- `21,028,957` temporal event rows.
 - `58` emitted concepts.
 - No emitted concept below 1% patient support.
+
+Rows per patient timeline:
+
+| Statistic | Rows |
+|-----------|------|
+| Mean | 368.4 |
+| Std | 262.9 |
+| Min | 12 |
+| 1% | 84 |
+| 5% | 115.9 |
+| 25% | 197 |
+| Median | 291 |
+| 75% | 452 |
+| 95% | 891 |
+| 99% | 1,360 |
+| Max | 3,587 |
+
+Largest event concepts by row count:
+
+| Concept | Rows |
+|---------|------|
+| `HEART_RATE_MEASURE` | 3,902,365 |
+| `BLOOD_PRESSURE_SYSTOLIC_MEASURE` | 3,705,203 |
+| `BLOOD_PRESSURE_DIASTOLIC_MEASURE` | 3,703,372 |
+| `BODY_TEMPERATURE` | 1,139,351 |
+| `GLUCOSE_MEASURE` | 1,045,468 |
+| `POTASSIUM_MEASURE` | 605,599 |
+| `SODIUM_MEASURE` | 556,694 |
+| `HEMATOCRIT_MEASURE` | 555,707 |
+| `DEXTROSE_BITZUA` | 520,499 |
+| `HEMOGLOBIN_MEASURE` | 513,549 |
