@@ -98,7 +98,7 @@ CHART_ITEMIDS_ALL = (
 )
 
 # Input items (Metavision, all linksto='inputevents')
-INS_REGULAR   = {223258, 229619}                       # Regular, U500
+INS_REGULAR   = {223258}                               # Regular insulin; exclude U500 from IV dosage
 INS_BASAL     = {223259, 223260}                       # NPH, Glargine
 INS_BOLUS     = {223262, 229299, 223261, 223257}       # Humalog, Novolog, Humalog 75/25, 70/30
 HEPARIN_IV    = {225152, 225975, 229597, 230044}       # generic, prophylaxis, Impella, CRRT
@@ -183,6 +183,12 @@ RANGES = {
     "BMI_MEASURE":               (10, 80),
     "BASE_GLUCOSE_MEASURE":      (10, 1500),
     "E-GFR_MEASURE":             (0, 300),
+}
+
+DOSE_RANGES = {
+    "INSULIN_IV_DOSAGE": (0.01, 100),
+    "BASAL_DOSAGE": (1, 300),
+    "BOLUS_DOSAGE": (1, 150),
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -679,15 +685,17 @@ def emit_input_true(concept, itemids):
 def emit_input_dose_units(concept, itemids):
     """Emit dose in Units (insulin). Drop rows whose amountuom is not 'units' (case-insensitive)."""
     sub = inp[inp["itemid"].isin(itemids) & inp["amount"].notna() & (inp["amountuom_l"] == "units")].copy()
+    lo, hi = DOSE_RANGES[concept]
+    sub = sub[(sub["amount"] >= lo) & (sub["amount"] <= hi)].copy()
     if sub.empty:
         return
     df = make_event_df(sub["hadm_id"], concept, sub["starttime"], sub["amount"].astype(float))
     all_events.append(filter_window(df))
 
 # Insulin (dose in Units)
-emit_input_dose_units("INSULIN_BITZUA", INS_REGULAR)
-emit_input_dose_units("BASAL_BITZUA",   INS_BASAL)
-emit_input_dose_units("BOLUS_BITZUA",   INS_BOLUS)
+emit_input_dose_units("INSULIN_IV_DOSAGE", INS_REGULAR)
+emit_input_dose_units("BASAL_DOSAGE",      INS_BASAL)
+emit_input_dose_units("BOLUS_DOSAGE",      INS_BOLUS)
 
 # Other IV drugs (Value="True")
 emit_input_true("HEPARIN_IV_BITZUA",        HEPARIN_IV)
@@ -785,7 +793,7 @@ def emit_emar(concept, pattern, route_set=None):
 
 # Routeless: emit on medication match alone (concept is the route)
 emit_emar("METFORMIN_HOSPITAL_BITZUA",    METFORMIN_PATTERN)
-emit_emar("ANTIDIABETIC_HOSPITAL_BITZUA", ANTIDIAB_PATTERN)
+emit_emar("ANTIDIABETIC_HIGH_HYPO_HOSPITAL_BITZUA", ANTIDIAB_PATTERN)
 emit_emar("SGLT2_HOSPITAL_BITZUA",        SGLT2_PATTERN)
 emit_emar("K-BINDER_BITZUA",              KBINDER_PATTERN)
 

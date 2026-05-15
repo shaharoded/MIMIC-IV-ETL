@@ -111,7 +111,7 @@ One row per event/measurement. Columns:
 - Only events falling **within** `[admittime, dischtime or deathtime]` are included.
 - `ConceptName` values must be a **strict subset** of the keys in `rawconcept-tak-repo-portable.json`.
 - For measurement concepts, `Value` is the numeric reading.
-- For event/drug/complication concepts, `Value = "True"`. Other than MEAL that have is specific discrete values and Insulin / basal / bolus that are dosage bound.
+- For event/drug/complication concepts, `Value = "True"`. `MEAL` has specific discrete values; `INSULIN_IV_DOSAGE`, `BASAL_DOSAGE`, and `BOLUS_DOSAGE` carry numeric doses.
 - Duplicates (same `PatientId` + `ConceptName` + `StartDateTime`) should be deduplicated (keep first).
 
 ---
@@ -157,13 +157,13 @@ Every concept has **one canonical unit**. Downstream code cannot handle mixed un
 | `BMI_MEASURE` | kg/m² | drop rows outside (10, 80) |
 | `E-GFR_MEASURE` | mL/min/1.73m² | drop other |
 
-### Canonical units per drug-dose concept (only `INSULIN_BITZUA`, `BASAL_BITZUA`, `BOLUS_BITZUA` carry numeric values)
+### Canonical units per drug-dose concept (only `INSULIN_IV_DOSAGE`, `BASAL_DOSAGE`, `BOLUS_DOSAGE` carry numeric values)
 
 | Concept | Canonical unit | Conversion rule |
 |---------|---------------|------------------|
-| `INSULIN_BITZUA` | U (units) | `inputevents.amountuom` must be `units` (drop `mL`, `mg`, etc.). `prescriptions` is **not** consulted for dose. |
-| `BASAL_BITZUA` | U | same |
-| `BOLUS_BITZUA` | U | same |
+| `INSULIN_IV_DOSAGE` | U (units) | `inputevents.amountuom` must be `units`; keep 0.01-100 only. `prescriptions` is **not** consulted for dose. |
+| `BASAL_DOSAGE` | U | `inputevents.amountuom` must be `units`; keep 1-300 only. |
+| `BOLUS_DOSAGE` | U | `inputevents.amountuom` must be `units`; keep 1-150 only. |
 
 All other `*_BITZUA` concepts carry `Value="True"` (no numeric dose) — no unit normalization needed.
 
@@ -252,23 +252,23 @@ Only use sources that record **actual administration events**, never prescribed/
 `hosp/pharmacy.csv.gz` is used **only as a route lookup** (`pharmacy_id → route`) so that EMAR rows can be split into IV vs PO vs SC concepts (steroids, antibiotics, heparin). Its `medication` and dose columns are **not** consumed. The route join works because EMAR carries `pharmacy_id` linking back to the parent pharmacy order.
 
 #### Value Rules
-- `INSULIN_BITZUA`, `BASAL_BITZUA`, `BOLUS_BITZUA`: from `inputevents` only. `Value` = `amount` (canonical unit: insulin Units; see Unit Normalization Policy — drop rows where `amountuom` is not Units).
+- `INSULIN_IV_DOSAGE`, `BASAL_DOSAGE`, `BOLUS_DOSAGE`: from `inputevents` only. `Value` = `amount` (canonical unit: insulin Units; see Unit Normalization Policy - drop rows where `amountuom` is not Units or outside the allowed range).
 - All other drug concepts: `Value = "True"`.
 
 #### Insulin (`inputevents` only) — itemids verified against `d_items.csv.gz`
 
 | ConceptName | itemid(s) | Label |
 |-------------|-----------|-------|
-| `INSULIN_BITZUA` | `223258`, `229619` | Insulin - Regular, Insulin - U500 |
-| `BASAL_BITZUA`   | `223259`, `223260` | Insulin - NPH, Insulin - Glargine |
-| `BOLUS_BITZUA`   | `223262`, `229299`, `223261`, `223257` | Insulin - Humalog, Insulin - Novolog, Insulin - Humalog 75/25, Insulin - 70/30 |
+| `INSULIN_IV_DOSAGE` | `223258` | Insulin - Regular. Exclude `229619` Insulin - U500 because it is concentrated regular insulin and should not be treated as default IV regular insulin dosage. |
+| `BASAL_DOSAGE`      | `223259`, `223260` | Insulin - NPH, Insulin - Glargine |
+| `BOLUS_DOSAGE`      | `223262`, `229299`, `223261`, `223257` | Insulin - Humalog, Insulin - Novolog, Insulin - Humalog 75/25, Insulin - 70/30 |
 
 #### Antidiabetics (non-insulin) — `emar` only
 
 | ConceptName | `medication` patterns (case-insensitive substring on EMAR `medication`) |
 |-------------|------------------------------------------------------------------------|
 | `METFORMIN_HOSPITAL_BITZUA` | `metformin` |
-| `ANTIDIABETIC_HOSPITAL_BITZUA` | `glipizide`, `glyburide`, `glimepiride`, `sitagliptin`, `saxagliptin`, `alogliptin`, `linagliptin`, `exenatide`, `liraglutide`, `dulaglutide`, `semaglutide`, `pioglitazone` |
+| `ANTIDIABETIC_HIGH_HYPO_HOSPITAL_BITZUA` | `glipizide`, `glyburide`, `glimepiride`, `sitagliptin`, `saxagliptin`, `alogliptin`, `linagliptin`, `exenatide`, `liraglutide`, `dulaglutide`, `semaglutide`, `pioglitazone` |
 | `SGLT2_HOSPITAL_BITZUA` | `dapagliflozin`, `canagliflozin`, `empagliflozin`, `ertugliflozin`, `farxiga`, `invokana`, `jardiance`, `steglatro`, `synjardy`, `xigduo`, `glyxambi`, `sotagliflozin`, `bexagliflozin` |
 
 #### Antibiotics

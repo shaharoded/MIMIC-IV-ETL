@@ -63,8 +63,8 @@
       "description": "Raw concept to mark antibiotic drugs administration event (oral - less severe)",
       "derived_from": null
     },
-    "ANTIDIABETIC_HOSPITAL_BITZUA": {
-      "name": "ANTIDIABETIC_HOSPITAL_BITZUA",
+    "ANTIDIABETIC_HIGH_HYPO_HOSPITAL_BITZUA": {
+      "name": "ANTIDIABETIC_HIGH_HYPO_HOSPITAL_BITZUA",
       "family": "raw-concept",
       "categories": [
         "DrugAdministration"
@@ -90,13 +90,13 @@
       "description": "Raw concept to mark the atherosclerosis event, inputed from 'Observation'",
       "derived_from": null
     },
-    "BASAL_BITZUA": {
-      "name": "BASAL_BITZUA",
+    "BASAL_DOSAGE": {
+      "name": "BASAL_DOSAGE",
       "family": "raw-concept",
       "categories": [
         "DrugAdministration"
       ],
-      "description": "Raw concept to manage the administration of BASAL (long term) insulin, which is SubCutaneous by default",
+      "description": "Raw numeric concept for BASAL (long term) insulin dosage in units; allowed range 1-300",
       "derived_from": null
     },
     "BASE_GLUCOSE_MEASURE": {
@@ -162,13 +162,13 @@
       "description": "Raw concept to manage base BODY TEMPERATURE (units Celsius)",
       "derived_from": null
     },
-    "BOLUS_BITZUA": {
-      "name": "BOLUS_BITZUA",
+    "BOLUS_DOSAGE": {
+      "name": "BOLUS_DOSAGE",
       "family": "raw-concept",
       "categories": [
         "DrugAdministration"
       ],
-      "description": "Raw concept to manage the administration of BOLUS (short term) insulin, assumed to be SubCutaneous by default (many DB mismatches there)",
+      "description": "Raw numeric concept for BOLUS (short term) insulin dosage in units; allowed range 1-150",
       "derived_from": null
     },
     "CALCIUM-GLUCONATE_BITZUA": {
@@ -351,13 +351,13 @@
       "description": "Raw concept to manage the measurement of WHITE BLOOD CELLS for infection determination in units of 10³/µL (LEUKOCYTES)",
       "derived_from": null
     },
-    "INSULIN_BITZUA": {
-      "name": "INSULIN_BITZUA",
+    "INSULIN_IV_DOSAGE": {
+      "name": "INSULIN_IV_DOSAGE",
       "family": "raw-concept",
       "categories": [
         "DrugAdministration"
       ],
-      "description": "Raw concept to manage the administration of regular insulin, which is IntraVenous by default",
+      "description": "Raw numeric concept for regular IV insulin dosage in units; allowed range 0.01-100",
       "derived_from": null
     },
     "K-BINDER_BITZUA": {
