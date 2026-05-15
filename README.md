@@ -61,10 +61,9 @@ Validation behavior:
 - If the pipeline emits a concept not defined in the tak repo, it prints a warning and omits those rows before writing output.
 - If an emitted concept has less than 1% patient support, it prints a warning and omits those rows before writing output.
 
-Current intentional removals:
+Current support-filtered concepts:
 
-- `K-BINDER_BITZUA` and `SGLT2_HOSPITAL_BITZUA` are still mapped in the pipeline, but are omitted from final output when they remain below the 1% support threshold.
-- `DIABETIC_COMA` and `OTHER_COMPLICATION` were removed from the tak-repo output contract because they were rare / low-value complication concepts.
+- `K_BINDER_BITZUA`, `SGLT2_HOSPITAL_BITZUA`, `DIABETIC_COMA`, and `OTHER_COMPLICATION` are in the tak repo and mapped in the pipeline, but are omitted from final output when they remain below the 1% support threshold.
 
 ## Repository Files
 

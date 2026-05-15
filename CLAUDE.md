@@ -136,7 +136,7 @@ Every concept has **one canonical unit**. Downstream code cannot handle mixed un
 | `POTASSIUM_MEASURE` | mmol/L | mEq/L ≡ mmol/L (accept both) |
 | `SODIUM_MEASURE` | mmol/L | mEq/L ≡ mmol/L (accept both) |
 | `CREATININE_SERUM_MEASURE` | mg/dL | drop µmol/L |
-| `ALBUMIN_MEASURE` | g/dL | drop g/L |
+| `ALBUMIN_SERUM_MEASURE` | g/dL | drop g/L |
 | `ALANINE-AMINOTRANSFERASE_MEASURE` | U/L | drop IU/L only if different scale (treat IU/L ≡ U/L) |
 | `ASPARATE-AMINOTRANSFERASE_MEASURE` | U/L | same as above |
 | `HEMATOCRIT_MEASURE` | % | drop fractional (0–1) reports if any |
@@ -152,7 +152,7 @@ Every concept has **one canonical unit**. Downstream code cannot handle mixed un
 | `HEART_RATE_MEASURE` | bpm | drop rows outside (20, 250) |
 | `BLOOD_PRESSURE_SYSTOLIC_MEASURE` | mmHg | drop rows outside (40, 280) |
 | `BLOOD_PRESSURE_DIASTOLIC_MEASURE` | mmHg | drop rows outside (20, 200) |
-| `BODY_TEMPERATURE_MEASURE` | °C | convert °F → °C: `(F-32)*5/9`; drop rows outside (25, 45) °C |
+| `BODY_TEMPERATURE` | °C | convert °F → °C: `(F-32)*5/9`; drop rows outside (25, 45) °C |
 | `WEIGHT_MEASURE` | kg | convert lbs → kg (`*0.453592`); drop rows outside (20, 400) kg |
 | `BMI_MEASURE` | kg/m² | drop rows outside (10, 80) |
 | `E-GFR_MEASURE` | mL/min/1.73m² | drop other |
@@ -208,7 +208,7 @@ Use `labevents.valuenum` / `chartevents.valuenum` where `hadm_id` is not null an
 | `POTASSIUM_MEASURE` | Lab `50971`, `50822` | labevents | mEq/L |
 | `SODIUM_MEASURE` | Lab `50983`, `50824` | labevents | mEq/L |
 | `CREATININE_SERUM_MEASURE` | Lab `50912` | labevents | mg/dL |
-| `ALBUMIN_MEASURE` | Lab `50862` | labevents | g/dL |
+| `ALBUMIN_SERUM_MEASURE` | Lab `50862` | labevents | g/dL |
 | `ALANINE-AMINOTRANSFERASE_MEASURE` | Lab `50861` | labevents | U/L |
 | `ASPARATE-AMINOTRANSFERASE_MEASURE` | Lab `50878` | labevents | U/L |
 | `HEMATOCRIT_MEASURE` | Lab `51221` | labevents | % |
@@ -224,7 +224,7 @@ Use `labevents.valuenum` / `chartevents.valuenum` where `hadm_id` is not null an
 | `HEART_RATE_MEASURE` | Chart `220045` | chartevents | BPM |
 | `BLOOD_PRESSURE_SYSTOLIC_MEASURE` | Chart `220179` (NIBP sys), `220050` (ABP sys) | chartevents | mmHg |
 | `BLOOD_PRESSURE_DIASTOLIC_MEASURE` | Chart `220180` (NIBP dia), `220051` (ABP dia) | chartevents | mmHg |
-| `BODY_TEMPERATURE_MEASURE` | Chart `223761` (°F), `223762` (°C) | chartevents | Convert °F→°C: `(F-32)*5/9` |
+| `BODY_TEMPERATURE` | Chart `223761` (°F), `223762` (°C) | chartevents | Convert °F→°C: `(F-32)*5/9` |
 | `WEIGHT_MEASURE` | Chart `226512` (admit wt, kg), `224639` (daily wt, kg), `226531` (wt, lbs) | chartevents | Convert lbs→kg (`*0.453592`) where needed |
 | `BMI_MEASURE` | `omr.csv.gz` `result_name` containing `BMI`, else compute from height + weight | omr / chartevents | kg/m² |
 | `E-GFR_MEASURE` | Lab itemids `50920`, `51770`, `52026` (MDRD-equation variants only — CKD-EPI itemids `53161`/`53180` are excluded) | labevents | mL/min/1.73m². Pull whenever natively present; do NOT compute from creatinine |
@@ -289,8 +289,8 @@ Antibiotic name patterns (case-insensitive partial match): include the common an
 | `DEXTROSE_BITZUA` | `220949` D5%, `220950` D10%, `220952` D50%, `228140/141/142` D20/30/40%, `225947` PN | n/a |
 | `BICARBONATE_BITZUA` | `220995` 8.4%, `225165` Bicarbonate Base, `227533` 8.4% Amp, `221211` 1.4% | n/a |
 | `CALCIUM-GLUCONATE_BITZUA` | `221456`, `227525` (CRRT), `229640` (Bolus) | n/a |
-| `HYPERTONIC-SALINE_BITZUA` | `225161` NaCl 3%, `228341` NaCl 23.4% | n/a |
-| `K-BINDER_BITZUA` | n/a | `kayexalate`, `sodium polystyrene`, `polystyrene sulfonate`, `patiromer`, `veltassa`, `lokelma`, `sodium zirconium`, `zirconium cyclosilicate` (any route). Low support in the current generated dataset, but keep in the pipeline because local EMAR contains additional names missed by the original pattern. |
+| `HYPERTONIC_SALINE_BITZUA` | `225161` NaCl 3%, `228341` NaCl 23.4% | n/a |
+| `K_BINDER_BITZUA` | n/a | `kayexalate`, `sodium polystyrene`, `polystyrene sulfonate`, `patiromer`, `veltassa`, `lokelma`, `sodium zirconium`, `zirconium cyclosilicate` (any route). Low support in the current generated dataset, but keep in the pipeline because local EMAR contains additional names missed by the original pattern. |
 | `STEROIDS_IV_BITZUA` | n/a — **no steroid itemids exist in MIMIC-IV `d_items`** | steroid name pattern + EMAR `route` ∈ IV routes (via `pharmacy.route` join) |
 | `STEROIDS_PO_BITZUA` | n/a | steroid name pattern + EMAR `route` ∈ PO routes (via `pharmacy.route` join) |
 
@@ -320,7 +320,7 @@ These map to `concept_events`, **not** `context_data`. The active diagnosis-deri
 | `ACIDOSIS` | `2762` | `E872` |
 | `HYPEROSMOLALITY` | `2760` | `E870` |
 | `ATHEROSCLEROSIS` | `440*` | `I70*` |
-| `CARDIO-VASCULAR_DISORDER` | `410`–`414*`, `427*`, `428*` | `I20`–`I25*`, `I48*`, `I49*`, `I50*` |
+| `CARDIOVASCULAR_DISORDER` | `410`–`414*`, `427*`, `428*` | `I20`–`I25*`, `I48*`, `I49*`, `I50*` |
 | `KIDNEY_COMPLICATION` | `2504*`, `585*`, `5849` | `N17*`, `N18*`, `N19`, `E0822`, `E0922`, `E1022`, `E1122`, `E1322` |
 | `RETINOPATHY` | `2505*`, `3620`, `36201`–`36215` | diabetic ophthalmic prefixes `E0831*`–`E0839*`, `E0931*`–`E0939*`, `E1031*`–`E1039*`, `E1131*`–`E1139*`, `E1331*`–`E1339*`, plus `H35*`, `H36*` |
 | `NEUROVASCULAR_COMPLICATION` | `2507*`, `44320`–`44329` | diabetic peripheral circulatory prefixes `E0851`, `E0852`, `E0951`, `E0952`, `E1051`, `E1052`, `E1151`, `E1152`, `E1351`, `E1352`, plus `I7320`–`I7329` |

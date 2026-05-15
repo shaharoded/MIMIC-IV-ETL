@@ -164,7 +164,7 @@ RANGES = {
     "POTASSIUM_MEASURE":         (1.0, 10.0),
     "SODIUM_MEASURE":            (90, 200),
     "CREATININE_SERUM_MEASURE":  (0.1, 30),
-    "ALBUMIN_MEASURE":           (0.5, 7.0),
+    "ALBUMIN_SERUM_MEASURE":     (0.5, 7.0),
     "ALANINE-AMINOTRANSFERASE_MEASURE": (1, 10_000),
     "ASPARATE-AMINOTRANSFERASE_MEASURE": (1, 10_000),
     "HEMATOCRIT_MEASURE":        (5, 75),
@@ -178,7 +178,7 @@ RANGES = {
     "HEART_RATE_MEASURE":        (20, 250),
     "BLOOD_PRESSURE_SYSTOLIC_MEASURE":  (40, 280),
     "BLOOD_PRESSURE_DIASTOLIC_MEASURE": (20, 200),
-    "BODY_TEMPERATURE_MEASURE":  (25, 45),
+    "BODY_TEMPERATURE":          (25, 45),
     "WEIGHT_MEASURE":            (20, 400),
     "BMI_MEASURE":               (10, 80),
     "BASE_GLUCOSE_MEASURE":      (10, 1500),
@@ -430,7 +430,7 @@ emit_icd("DIABETIC_COMA",             icd9_prefixes=("2502", "2503"),           
 emit_icd("ACIDOSIS",                  icd9_prefixes=("2762",),                      icd10_prefixes=("E872",))
 emit_icd("HYPEROSMOLALITY",           icd9_prefixes=("2760",),                      icd10_prefixes=("E870",))
 emit_icd("ATHEROSCLEROSIS",           icd9_prefixes=("440",),                       icd10_prefixes=("I70",))
-emit_icd("CARDIO-VASCULAR_DISORDER",  icd9_prefixes=("410", "411", "412", "413", "414", "427", "428"),
+emit_icd("CARDIOVASCULAR_DISORDER",   icd9_prefixes=("410", "411", "412", "413", "414", "427", "428"),
                                       icd10_prefixes=("I20", "I21", "I22", "I23", "I24", "I25", "I48", "I49", "I50"))
 emit_icd("KIDNEY_COMPLICATION",       icd9_prefixes=("2504", "585", "5849"),        icd10_prefixes=("N17", "N18", "N19", "E0822", "E0922", "E1022", "E1122", "E1322"))
 emit_icd("RETINOPATHY",               icd9_prefixes=("2505", "3620"),               icd10_prefixes=("E0831", "E0832", "E0833", "E0834", "E0835", "E0836", "E0837", "E0839",
@@ -481,7 +481,7 @@ lab_measure("PH_MEASURE",                     LAB_PH)                           
 lab_measure("POTASSIUM_MEASURE",              LAB_POTASSIUM,  canonical_uoms={"meq/l", "mmol/l"})
 lab_measure("SODIUM_MEASURE",                 LAB_SODIUM,     canonical_uoms={"meq/l", "mmol/l"})
 lab_measure("CREATININE_SERUM_MEASURE",       LAB_CREAT,      canonical_uoms={"mg/dl"})
-lab_measure("ALBUMIN_MEASURE",                LAB_ALBUMIN,    canonical_uoms={"g/dl"})
+lab_measure("ALBUMIN_SERUM_MEASURE",          LAB_ALBUMIN,    canonical_uoms={"g/dl"})
 lab_measure("ALANINE-AMINOTRANSFERASE_MEASURE", LAB_ALT,      canonical_uoms={"u/l", "iu/l"})
 lab_measure("ASPARATE-AMINOTRANSFERASE_MEASURE", LAB_AST,     canonical_uoms={"u/l", "iu/l"})
 lab_measure("HEMATOCRIT_MEASURE",             LAB_HCT,        canonical_uoms={"%"})
@@ -591,8 +591,8 @@ temp_f = chart[chart["itemid"].isin(CHART_TEMP_F) & chart["valuenum"].notna()].c
 temp_f["valuenum"] = (temp_f["valuenum"] - 32) * 5.0 / 9.0
 temp_all = pd.concat([temp_c, temp_f], ignore_index=True)
 if not temp_all.empty:
-    df = make_event_df(temp_all["hadm_id"], "BODY_TEMPERATURE_MEASURE", temp_all["charttime"], temp_all["valuenum"].astype(float))
-    df = plausible(df, "BODY_TEMPERATURE_MEASURE")
+    df = make_event_df(temp_all["hadm_id"], "BODY_TEMPERATURE", temp_all["charttime"], temp_all["valuenum"].astype(float))
+    df = plausible(df, "BODY_TEMPERATURE")
     all_events.append(filter_window(df))
 
 # Weight: kg directly + lb→kg
@@ -702,7 +702,7 @@ emit_input_true("HEPARIN_IV_BITZUA",        HEPARIN_IV)
 emit_input_true("DEXTROSE_BITZUA",          DEXTROSE)
 emit_input_true("BICARBONATE_BITZUA",       BICARB_DRUG)
 emit_input_true("CALCIUM-GLUCONATE_BITZUA", CA_GLUCONATE)
-emit_input_true("HYPERTONIC-SALINE_BITZUA", HTS_SALINE)
+emit_input_true("HYPERTONIC_SALINE_BITZUA", HTS_SALINE)
 emit_input_true("ANTIBIOTIC_IV_BITZUA",     ABX_IV)
 # STEROIDS_IV_BITZUA: not in inputevents — emitted below from EMAR via pharmacy.route.
 
@@ -795,7 +795,7 @@ def emit_emar(concept, pattern, route_set=None):
 emit_emar("METFORMIN_HOSPITAL_BITZUA",    METFORMIN_PATTERN)
 emit_emar("ANTIDIABETIC_HIGH_HYPO_HOSPITAL_BITZUA", ANTIDIAB_PATTERN)
 emit_emar("SGLT2_HOSPITAL_BITZUA",        SGLT2_PATTERN)
-emit_emar("K-BINDER_BITZUA",              KBINDER_PATTERN)
+emit_emar("K_BINDER_BITZUA",              KBINDER_PATTERN)
 
 # Route-disambiguated
 emit_emar("STEROIDS_IV_BITZUA",  STEROIDS_PO_PATTERN, IV_ROUTES)

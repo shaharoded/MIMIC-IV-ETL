@@ -36,8 +36,8 @@
       "description": "Raw concept to manage the measurement of ALANINE-AMINOTRANSFERASE",
       "derived_from": null
     },
-    "ALBUMIN_MEASURE": {
-      "name": "ALBUMIN_MEASURE",
+    "ALBUMIN_SERUM_MEASURE": {
+      "name": "ALBUMIN_SERUM_MEASURE",
       "family": "raw-concept",
       "categories": [
         "Measurements"
@@ -153,8 +153,8 @@
       "description": "Raw concept to manage the measurement of BMI",
       "derived_from": null
     },
-    "BODY_TEMPERATURE_MEASURE": {
-      "name": "BODY_TEMPERATURE_MEASURE",
+    "BODY_TEMPERATURE": {
+      "name": "BODY_TEMPERATURE",
       "family": "raw-concept",
       "categories": [
         "Measurements"
@@ -180,8 +180,8 @@
       "description": "Raw concept to mark calcium gluconate administration event",
       "derived_from": null
     },
-    "CARDIO-VASCULAR_DISORDER": {
-      "name": "CARDIO-VASCULAR_DISORDER",
+    "CARDIOVASCULAR_DISORDER": {
+      "name": "CARDIOVASCULAR_DISORDER",
       "family": "raw-concept",
       "categories": [
         "Complications"
@@ -232,6 +232,15 @@
         "Context"
       ],
       "description": "Raw concept to mark the diabetes diagnosis event",
+      "derived_from": null
+    },
+    "DIABETIC_COMA": {
+      "name": "DIABETIC_COMA",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark diabetic coma diagnosis event",
       "derived_from": null
     },
     "E-GFR_MEASURE": {
@@ -315,8 +324,8 @@
       "description": "Raw concept to mark the hyperosmolality event, inputed as 'Observation'",
       "derived_from": null
     },
-    "HYPERTONIC-SALINE_BITZUA": {
-      "name": "HYPERTONIC-SALINE_BITZUA",
+    "HYPERTONIC_SALINE_BITZUA": {
+      "name": "HYPERTONIC_SALINE_BITZUA",
       "family": "raw-concept",
       "categories": [
         "DrugAdministration"
@@ -360,8 +369,8 @@
       "description": "Raw numeric concept for regular IV insulin dosage in units; allowed range 0.01-100",
       "derived_from": null
     },
-    "K-BINDER_BITZUA": {
-      "name": "K-BINDER_BITZUA",
+    "K_BINDER_BITZUA": {
+      "name": "K_BINDER_BITZUA",
       "family": "raw-concept",
       "categories": [
         "DrugAdministration"
@@ -439,6 +448,15 @@
         "Complications"
       ],
       "description": "Raw concept to mark the neurovascular complication event, inputed as 'Observation'",
+      "derived_from": null
+    },
+    "OTHER_COMPLICATION": {
+      "name": "OTHER_COMPLICATION",
+      "family": "raw-concept",
+      "categories": [
+        "Complications"
+      ],
+      "description": "Raw concept to mark other diabetic complication diagnosis event",
       "derived_from": null
     },
     "NEUTROPHILS_MEASURE": {
