@@ -574,11 +574,13 @@ if not egfr.empty:
 # stage needs from this pipeline.
 #
 # HYPEROSMOLALITY criterion:
-#   Serum osmolality > 295 mOsm/kg. Two paths, preferring directly measured:
-#     1) Measured osmolality (lab itemid 50964) > 295 mOsm/kg.
-#     2) Calculated osmolality > 295 from a single chemistry draw (same charttime)
+#   Serum osmolality > 300 mOsm/kg (clinical hyperosmolar alarm point). Two paths,
+#   preferring directly measured:
+#     1) Measured osmolality (lab itemid 50964) > 300 mOsm/kg.
+#     2) Calculated osmolality > 300 from a single chemistry draw (same charttime)
 #        using the standard formula:  2*Na + glucose/18 + BUN/2.8
-#        (Rasouli, Clin Chem Lab Med 2011; routine reference range 275–295.)
+#        (Rasouli, Clin Chem Lab Med 2011; routine reference range 275–295; >300 is
+#        the typical clinical alarm threshold for true hyperosmolar state.)
 #        Requires Na (mmol/L), glucose (mg/dL), and BUN (mg/dL) all present at the
 #        same charttime — same blood draw, not interpolated.
 #   Every qualifying timepoint is emitted (not just the first) so the downstream
@@ -603,14 +605,16 @@ hco3_low = lab[lab["itemid"].isin(LAB_BICARB) & lab["valuenum"].notna()].copy()
 hco3_low = hco3_low[hco3_low["uom_l"].str.contains("mmol|meq")]
 hco3_low = hco3_low[hco3_low["valuenum"] <= 10][["hadm_id", "charttime"]].rename(columns={"charttime": "hco3_time"})
 
-# HYPEROSMOLALITY — every measured osmolality > 295, plus every calculated > 295 from same-draw Na+glucose+BUN
+# HYPEROSMOLALITY — every measured osmolality > 300, plus every calculated > 300 from same-draw Na+glucose+BUN.
+# 300 is the clinical alarm point for hyperosmolar state; 295 is the upper edge of normal and over-fires.
+OSM_HI_THRESHOLD = 300.0
 osm_meas = lab[lab["itemid"].isin(LAB_OSM) & lab["valuenum"].notna()].copy()
-osm_meas = osm_meas[osm_meas["valuenum"] > 295]
+osm_meas = osm_meas[osm_meas["valuenum"] > OSM_HI_THRESHOLD]
 if not osm_meas.empty:
     df = make_event_df(osm_meas["hadm_id"], "HYPEROSMOLALITY", osm_meas["charttime"], "True")
     all_events.append(filter_window(df))
 
-# Calculated path — emit at every chemistry draw where osm_calc > 295. Dedup of same-timestamp
+# Calculated path — emit at every chemistry draw where osm_calc > 300. Dedup of same-timestamp
 # rows (e.g. a draw that ALSO has a measured osmolality) is handled by the global dedup step.
 na   = lab[lab["itemid"].isin(LAB_SODIUM)   & lab["valuenum"].notna() & lab["uom_l"].str.contains("mmol|meq")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "na"})
 glu  = lab[lab["itemid"].isin(LAB_GLUCOSE)  & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "glu"})
@@ -618,7 +622,7 @@ bun  = lab[lab["itemid"].isin(LAB_UREA)     & lab["valuenum"].notna() & lab["uom
 draw = na.merge(glu, on=["hadm_id", "charttime"]).merge(bun, on=["hadm_id", "charttime"])
 if not draw.empty:
     draw["osm_calc"] = 2 * draw["na"] + draw["glu"] / 18.0 + draw["bun"] / 2.8
-    draw_hi = draw[draw["osm_calc"] > 295]
+    draw_hi = draw[draw["osm_calc"] > OSM_HI_THRESHOLD]
     if not draw_hi.empty:
         df = make_event_df(draw_hi["hadm_id"], "HYPEROSMOLALITY", draw_hi["charttime"], "True")
         all_events.append(filter_window(df))
