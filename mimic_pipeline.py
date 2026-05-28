@@ -69,13 +69,14 @@ LAB_KETONE_SER = set()                                 # No serum ketone item ex
 LAB_CK         = {50910}                               # Creatine Kinase (CK) — exclude isoenzymes
 LAB_HBA1C      = {50852, 51631, 50854}                 # %A1c, Glycated Hgb, Absolute A1c
 LAB_EGFR       = {50920, 51770, 52026}                 # MDRD only (CKD-EPI variants excluded)
+LAB_OSM        = {50964}                               # Osmolality, measured (mOsm/kg) — used for HYPEROSMOLALITY
 # NOTE: Serum ketone lab does NOT exist in MIMIC-IV d_labitems → KETONES_SERUM_MEASURE = 0 rows.
 
 LAB_ITEMIDS_ALL = (
     LAB_GLUCOSE | LAB_BICARB | LAB_PH | LAB_POTASSIUM | LAB_SODIUM
     | LAB_CREAT | LAB_ALBUMIN | LAB_ALT | LAB_AST | LAB_HCT | LAB_HGB
     | LAB_PLT | LAB_WBC | LAB_NEUT_ABS | LAB_TROPONIN | LAB_UREA
-    | LAB_KETONE_UR | LAB_CK | LAB_HBA1C | LAB_EGFR
+    | LAB_KETONE_UR | LAB_CK | LAB_HBA1C | LAB_EGFR | LAB_OSM
 )
 
 # Chart items (Metavision)
@@ -423,32 +424,32 @@ def emit_icd(concept, icd9_prefixes=(), icd10_prefixes=()):
     all_events.append(make_event_df(sub["hadm_id"], concept, sub["admittime"], "True"))
 
 emit_icd("DIABETES_DIAGNOSIS",        icd9_prefixes=("250", "249"),                 icd10_prefixes=("E08", "E09", "E10", "E11", "E13"))
-emit_icd("HYPERGLYCEMIA",             icd9_prefixes=("79029", "25000", "25002"),    icd10_prefixes=("R739", "E0865", "E0965", "E1065", "E1165", "E1365"))
-emit_icd("HYPOGLYCEMIA",              icd9_prefixes=("2510", "2511", "2512", "25080", "25082"), icd10_prefixes=("E0864", "E0964", "E1064", "E1164", "E1364", "E162"))
-emit_icd("KETOACIDOSIS",              icd9_prefixes=("2501",),                      icd10_prefixes=("E0810", "E0811", "E0910", "E0911", "E1010", "E1011", "E1110", "E1111", "E1310", "E1311"))
-emit_icd("DIABETIC_COMA",             icd9_prefixes=("2502", "2503"),               icd10_prefixes=("E0801", "E0811", "E0901", "E0911", "E1001", "E1011", "E1101", "E1111", "E1301", "E1311"))
-emit_icd("ACIDOSIS",                  icd9_prefixes=("2762",),                      icd10_prefixes=("E872",))
-emit_icd("HYPEROSMOLALITY",           icd9_prefixes=("2760",),                      icd10_prefixes=("E870",))
-emit_icd("ATHEROSCLEROSIS",           icd9_prefixes=("440",),                       icd10_prefixes=("I70",))
-emit_icd("CARDIOVASCULAR_DISORDER",   icd9_prefixes=("410", "411", "412", "413", "414", "427", "428"),
-                                      icd10_prefixes=("I20", "I21", "I22", "I23", "I24", "I25", "I48", "I49", "I50"))
-emit_icd("KIDNEY_COMPLICATION",       icd9_prefixes=("2504", "585", "5849"),        icd10_prefixes=("N17", "N18", "N19", "E0822", "E0922", "E1022", "E1122", "E1322"))
-emit_icd("RETINOPATHY",               icd9_prefixes=("2505", "3620"),               icd10_prefixes=("E0831", "E0832", "E0833", "E0834", "E0835", "E0836", "E0837", "E0839",
-                                                                                                    "E0931", "E0932", "E0933", "E0934", "E0935", "E0936", "E0937", "E0939",
-                                                                                                    "E1031", "E1032", "E1033", "E1034", "E1035", "E1036", "E1037", "E1039",
-                                                                                                    "E1131", "E1132", "E1133", "E1134", "E1135", "E1136", "E1137", "E1139",
-                                                                                                    "E1331", "E1332", "E1333", "E1334", "E1335", "E1336", "E1337", "E1339",
-                                                                                                    "H35", "H36"))
-emit_icd("NEUROVASCULAR_COMPLICATION", icd9_prefixes=("2507", "4432"),              icd10_prefixes=("E0851", "E0852", "E0951", "E0952", "E1051", "E1052", "E1151", "E1152", "E1351", "E1352", "I7320", "I7321", "I7322", "I7323", "I7324", "I7325", "I7326", "I7327", "I7328", "I7329"))
-emit_icd("NERVOUS_SYSTEM_DISORDER",   icd9_prefixes=("3572", "2506"),               icd10_prefixes=("G632", "E0840", "E0841", "E0842", "E0843", "E0844", "E0849",
-                                                                                                    "E0940", "E0941", "E0942", "E0943", "E0944", "E0949",
-                                                                                                    "E1040", "E1041", "E1042", "E1043", "E1044", "E1049",
-                                                                                                    "E1140", "E1141", "E1142", "E1143", "E1144", "E1149",
-                                                                                                    "E1340", "E1341", "E1342", "E1343", "E1344", "E1349"))
-emit_icd("SKIN_ULCER",                icd9_prefixes=("2508", "707"),                icd10_prefixes=("L97", "L984", "E0862", "E0962", "E1062", "E1162", "E1362"))
-emit_icd("ACUTE_RESPIRATORY_DISORDER", icd9_prefixes=("51881", "51882", "51884"),   icd10_prefixes=("J80", "J9600", "J9601", "J9602", "J9690", "J9691", "J9692"))
-emit_icd("INFECTION",                 icd9_prefixes=("038", "99591", "99592"),      icd10_prefixes=("A40", "A41", "R65"))
-emit_icd("OTHER_COMPLICATION",        icd9_prefixes=("2509",),                      icd10_prefixes=("E1069", "E1169", "E1369"))
+
+# ICD-derived complication/infection events disabled.
+# Rationale: diagnoses_icd has no per-row timestamp — codes are billing diagnoses attached
+# to the admission as a whole. Stamping them at admittime made every "outcome" land on
+# t=0 of the stay, eliminating any in-hospital onset signal and conflating community-
+# acquired vs hospital-acquired disease. ACIDOSIS and HYPEROSMOLALITY are now derived
+# from time-stamped labs below (Step 7b). The chronic conditions (atherosclerosis,
+# cardiovascular, kidney, retinopathy, neuro-* , skin ulcer, etc.) cannot be reliably
+# time-resolved from MIMIC-IV and are intentionally dropped from concept_events.
+# emit_icd("HYPERGLYCEMIA",             icd9_prefixes=("79029", "25000", "25002"),    icd10_prefixes=("R739", "E0865", "E0965", "E1065", "E1165", "E1365"))
+# emit_icd("HYPOGLYCEMIA",              icd9_prefixes=("2510", "2511", "2512", "25080", "25082"), icd10_prefixes=("E0864", "E0964", "E1064", "E1164", "E1364", "E162"))
+# emit_icd("KETOACIDOSIS",              icd9_prefixes=("2501",),                      icd10_prefixes=("E0810", "E0811", "E0910", "E0911", "E1010", "E1011", "E1110", "E1111", "E1310", "E1311"))
+# emit_icd("DIABETIC_COMA",             icd9_prefixes=("2502", "2503"),               icd10_prefixes=("E0801", "E0811", "E0901", "E0911", "E1001", "E1011", "E1101", "E1111", "E1301", "E1311"))
+# emit_icd("ACIDOSIS",                  icd9_prefixes=("2762",),                      icd10_prefixes=("E872",))            # replaced by lab-derived pH<7.35
+# emit_icd("HYPEROSMOLALITY",           icd9_prefixes=("2760",),                      icd10_prefixes=("E870",))            # replaced by lab-derived osmolality>295
+# emit_icd("ATHEROSCLEROSIS",           icd9_prefixes=("440",),                       icd10_prefixes=("I70",))
+# emit_icd("CARDIOVASCULAR_DISORDER",   icd9_prefixes=("410", "411", "412", "413", "414", "427", "428"),
+#                                       icd10_prefixes=("I20", "I21", "I22", "I23", "I24", "I25", "I48", "I49", "I50"))
+# emit_icd("KIDNEY_COMPLICATION",       icd9_prefixes=("2504", "585", "5849"),        icd10_prefixes=("N17", "N18", "N19", "E0822", "E0922", "E1022", "E1122", "E1322"))
+# emit_icd("RETINOPATHY",               ...)
+# emit_icd("NEUROVASCULAR_COMPLICATION", ...)
+# emit_icd("NERVOUS_SYSTEM_DISORDER",   ...)
+# emit_icd("SKIN_ULCER",                ...)
+# emit_icd("ACUTE_RESPIRATORY_DISORDER", ...)
+# emit_icd("INFECTION",                 ...)
+# emit_icd("OTHER_COMPLICATION",        ...)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 7: Lab-based measurement events (unit normalization + plausibility)
@@ -540,6 +541,87 @@ if not egfr.empty:
     df = make_event_df(egfr["hadm_id"], "E-GFR_MEASURE", egfr["charttime"], egfr["valuenum"].astype(float))
     df = plausible(df, "E-GFR_MEASURE")
     all_events.append(filter_window(df))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 7b: Lab-derived acute events (timestamped at the lab draw)
+#
+# These give events a real in-hospital onset time instead of being collapsed to admittime.
+# ACIDOSIS is intentionally NOT emitted here: the downstream stage computes it with a
+# multi-signal rule (pH < 7.3 + bicarbonate < 10 + insulin-IV within 2h). PH_MEASURE
+# and BICARBONATE_MEASURE are already emitted by Step 7, which is the only input that
+# stage needs from this pipeline.
+#
+# HYPEROSMOLALITY criterion:
+#   Serum osmolality > 295 mOsm/kg. Two paths, preferring directly measured:
+#     1) Measured osmolality (lab itemid 50964) > 295 mOsm/kg.
+#     2) Calculated osmolality > 295 from a single chemistry draw (same charttime)
+#        using the standard formula:  2*Na + glucose/18 + BUN/2.8
+#        (Rasouli, Clin Chem Lab Med 2011; routine reference range 275–295.)
+#        Requires Na (mmol/L), glucose (mg/dL), and BUN (mg/dL) all present at the
+#        same charttime — same blood draw, not interpolated.
+#   Every qualifying timepoint is emitted (not just the first) so the downstream
+#   model sees persistence/recurrence. Same-timestamp dupes (measured+calculated
+#   from one draw) are collapsed by the global dedup step.
+#
+# CARDIOVASCULAR_DISORDER criterion (also lab-derived, below `del lab`):
+#   See block under troponin handling.
+#
+# Emissions are Value="True" event rows, timestamped at the lab's charttime, and
+# filter_window'd to the admission window.
+# ─────────────────────────────────────────────────────────────────────────────
+print("[7b/9] Emitting lab-derived HYPEROSMOLALITY / CARDIOVASCULAR_DISORDER...")
+
+# ACIDOSIS-rule candidates — finished after Step 9 once insulin-IV times are loaded.
+# Rule: pH <= 7.3 AND bicarbonate <= 10 (within ±1h) AND insulin-IV within ±2h of pH.
+ph_acid_cand = lab[lab["itemid"].isin(LAB_PH) & lab["valuenum"].notna()].copy()
+ph_acid_cand = ph_acid_cand[(ph_acid_cand["valuenum"] >= 6.5) & (ph_acid_cand["valuenum"] <= 8.0)]
+ph_acid_cand = ph_acid_cand[ph_acid_cand["valuenum"] <= 7.3][["hadm_id", "charttime"]].rename(columns={"charttime": "ph_time"})
+
+hco3_low = lab[lab["itemid"].isin(LAB_BICARB) & lab["valuenum"].notna()].copy()
+hco3_low = hco3_low[hco3_low["uom_l"].str.contains("mmol|meq")]
+hco3_low = hco3_low[hco3_low["valuenum"] <= 10][["hadm_id", "charttime"]].rename(columns={"charttime": "hco3_time"})
+
+# HYPEROSMOLALITY — every measured osmolality > 295, plus every calculated > 295 from same-draw Na+glucose+BUN
+osm_meas = lab[lab["itemid"].isin(LAB_OSM) & lab["valuenum"].notna()].copy()
+osm_meas = osm_meas[osm_meas["valuenum"] > 295]
+if not osm_meas.empty:
+    df = make_event_df(osm_meas["hadm_id"], "HYPEROSMOLALITY", osm_meas["charttime"], "True")
+    all_events.append(filter_window(df))
+
+# Calculated path — emit at every chemistry draw where osm_calc > 295. Dedup of same-timestamp
+# rows (e.g. a draw that ALSO has a measured osmolality) is handled by the global dedup step.
+na   = lab[lab["itemid"].isin(LAB_SODIUM)   & lab["valuenum"].notna() & lab["uom_l"].str.contains("mmol|meq")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "na"})
+glu  = lab[lab["itemid"].isin(LAB_GLUCOSE)  & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "glu"})
+bun  = lab[lab["itemid"].isin(LAB_UREA)     & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "bun"})
+draw = na.merge(glu, on=["hadm_id", "charttime"]).merge(bun, on=["hadm_id", "charttime"])
+if not draw.empty:
+    draw["osm_calc"] = 2 * draw["na"] + draw["glu"] / 18.0 + draw["bun"] / 2.8
+    draw_hi = draw[draw["osm_calc"] > 295]
+    if not draw_hi.empty:
+        df = make_event_df(draw_hi["hadm_id"], "HYPEROSMOLALITY", draw_hi["charttime"], "True")
+        all_events.append(filter_window(df))
+
+# CARDIOVASCULAR_DISORDER — every troponin >= 600 ng/L per admission
+#
+# Criterion: high-sensitivity troponin (T or I) >= 600 ng/L on any lab draw.
+#   - URL (99th percentile) for hs-cTn is ~14-40 ng/L (assay-dependent).
+#   - >=600 ng/L is well above MI/ACS diagnostic cutoffs and captures clinically
+#     significant myocardial injury (large MI, severe demand ischemia, myocarditis,
+#     cardiogenic shock), not subtle troponin leak.
+#   - We mirror the unit handling of TROPONIN_MEASURE: ng/mL rows are converted to
+#     ng/L (*1000); ng/L rows are kept as-is. Other units are dropped.
+# Caveat (for downstream interpretation): troponin is order-driven in MIMIC — only
+# ~26% of admissions ever get one drawn — so this concept's absence does not imply
+# absence of cardiovascular disease, only absence of clinical suspicion + measurement.
+trop = lab[lab["itemid"].isin(LAB_TROPONIN) & lab["valuenum"].notna()].copy()
+if not trop.empty:
+    keep = trop["uom_l"].apply(lambda u: ("ng/ml" in u) or ("ng/l" in u))
+    trop = trop[keep].copy()
+    trop["v_ngL"] = trop.apply(lambda r: r["valuenum"] * 1000.0 if "ng/ml" in r["uom_l"] else r["valuenum"], axis=1)
+    trop_hi = trop[trop["v_ngL"] >= 600]
+    if not trop_hi.empty:
+        df = make_event_df(trop_hi["hadm_id"], "CARDIOVASCULAR_DISORDER", trop_hi["charttime"], "True")
+        all_events.append(filter_window(df))
 
 del lab  # free memory
 
@@ -732,6 +814,29 @@ if not po.empty:
 
     df = make_event_df(po["hadm_id"], "MEAL", po["starttime"], po["meal"])
     all_events.append(filter_window(df))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ACIDOSIS — derived rule (matches downstream ETL definition)
+#   pH <= 7.3 AND HCO3 <= 10 (within ±1h of pH) AND insulin-IV within ±2h of pH.
+#   Emitted at the pH charttime, Value="True", every qualifying timepoint.
+# ─────────────────────────────────────────────────────────────────────────────
+print("  ACIDOSIS rule join (pH+HCO3+insulin-IV)…")
+ins_iv_times = inp[
+    inp["itemid"].isin(INS_REGULAR) & inp["amount"].notna() & (inp["amountuom_l"] == "units")
+][["hadm_id", "starttime"]].rename(columns={"starttime": "ins_time"})
+
+if not ph_acid_cand.empty and not hco3_low.empty and not ins_iv_times.empty:
+    m = ph_acid_cand.merge(hco3_low, on="hadm_id")
+    m["dt_hco3"] = (m["ph_time"] - m["hco3_time"]).abs()
+    m = m[m["dt_hco3"] <= pd.Timedelta(hours=1)].drop_duplicates(subset=["hadm_id", "ph_time"])
+
+    m = m.merge(ins_iv_times, on="hadm_id")
+    m["dt_ins"] = (m["ph_time"] - m["ins_time"]).abs()
+    m = m[m["dt_ins"] <= pd.Timedelta(hours=2)].drop_duplicates(subset=["hadm_id", "ph_time"])
+
+    if not m.empty:
+        df = make_event_df(m["hadm_id"], "ACIDOSIS", m["ph_time"], "True")
+        all_events.append(filter_window(df))
 
 del inp
 
