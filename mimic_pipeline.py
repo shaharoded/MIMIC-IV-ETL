@@ -502,12 +502,34 @@ lab_measure("TROPONIN_MEASURE", LAB_TROPONIN, canonical_uoms={"ng/ml", "ng/l"}, 
 lab_measure("UREA_MEASURE",                   LAB_UREA,       canonical_uoms={"mg/dl"})
 lab_measure("KETONES_SERUM_MEASURE",          LAB_KETONE_SER, canonical_uoms={"mg/dl"})
 
-# KETONES_URINE: qualitative string → numeric ladder
-KU_MAP = {"negative": 0, "trace": 5, "small": 15, "moderate": 40, "large": 80}
+# KETONES_URINE: MIMIC-IV stores these mostly as numeric mg/dL strings ("10","15","40",
+# "80","150") with a minority of qualitative abbreviations ("NEG","TR","TRACE"). The
+# canonical 5-tier ladder (Neg/Trace/Small/Moderate/Large) is a fallback for the
+# qualitative cases; numeric strings are parsed directly. "___" and other junk → dropped.
+KU_MAP = {
+    "negative": 0, "neg": 0, "n": 0,
+    "trace": 5, "tr": 5, "tra": 5, "t": 5,
+    "small": 15, "moderate": 40, "large": 80,
+}
+def _parse_ku(v):
+    """Return numeric mg/dL from a raw urine-ketone string, else NaN."""
+    if v is None:
+        return float("nan")
+    s = str(v).strip().lower()
+    if not s or s == "___":
+        return float("nan")
+    if s in KU_MAP:
+        return float(KU_MAP[s])
+    # Strip leading >, >=, <, <= for capped readings ("> 80", ">=160")
+    s2 = s.lstrip(">=<").strip()
+    try:
+        return float(s2)
+    except ValueError:
+        return float("nan")
+
 ku = lab[lab["itemid"].isin(LAB_KETONE_UR)].copy()
 if not ku.empty:
-    ku["v_lower"] = ku["value"].fillna("").str.lower().str.strip()
-    ku["ku_val"]  = ku["v_lower"].map(KU_MAP)
+    ku["ku_val"] = ku["value"].map(_parse_ku)
     ku = ku[ku["ku_val"].notna()]
     if not ku.empty:
         df = make_event_df(ku["hadm_id"], "KETONES_URINE_MEASURE", ku["charttime"], ku["ku_val"].astype(float))
@@ -621,6 +643,73 @@ if not trop.empty:
     trop_hi = trop[trop["v_ngL"] >= 600]
     if not trop_hi.empty:
         df = make_event_df(trop_hi["hadm_id"], "CARDIOVASCULAR_DISORDER", trop_hi["charttime"], "True")
+        all_events.append(filter_window(df))
+
+# KIDNEY_COMPLICATION — lab-derived, time-stamped at the qualifying draw.
+#
+# Criteria (any one, evaluated per lab row):
+#   - Serum creatinine >= 2.0 mg/dL  (probable AKI / advanced CKD; KDIGO AKI stage 2+)
+#   - eGFR < 30 mL/min/1.73m^2       (CKD stage 4 or worse)
+# KDIGO rise-based criteria (>=0.3 mg/dL absolute, >=1.5x relative) are NOT emitted here:
+# TAK computes them downstream as parameterized concepts from CREATININE_SERUM_MEASURE,
+# which is already emitted in Step 7. Emitting Value="True" rows here covers the A1
+# attribute of the KIDNEY_COMPLICATION_EVENT rule so the OR clause can fire when the
+# raw creatinine is itself the trigger.
+creat_hi = lab[lab["itemid"].isin(LAB_CREAT) & lab["valuenum"].notna()].copy()
+creat_hi = creat_hi[creat_hi["uom_l"].str.contains("mg/dl")]
+creat_hi = creat_hi[(creat_hi["valuenum"] >= 2.0) & (creat_hi["valuenum"] <= 30)]
+if not creat_hi.empty:
+    df = make_event_df(creat_hi["hadm_id"], "KIDNEY_COMPLICATION", creat_hi["charttime"], "True")
+    all_events.append(filter_window(df))
+
+egfr_lo = lab[lab["itemid"].isin(LAB_EGFR) & lab["valuenum"].notna()].copy()
+egfr_lo = egfr_lo[(egfr_lo["valuenum"] >= 0) & (egfr_lo["valuenum"] < 30)]
+if not egfr_lo.empty:
+    df = make_event_df(egfr_lo["hadm_id"], "KIDNEY_COMPLICATION", egfr_lo["charttime"], "True")
+    all_events.append(filter_window(df))
+
+# KETOACIDOSIS — lab-derived, time-stamped at the qualifying ketone draw.
+#
+# ADA diagnostic criteria for DKA (all concurrent):
+#   1. Hyperglycemia:   glucose > 250 mg/dL
+#   2. Acidosis:        arterial pH < 7.30  OR  serum bicarbonate < 18 mmol/L
+#   3. Ketonemia:       ketones present (urine ketones >= Small (15 on our ladder);
+#                       serum ketones unavailable in MIMIC-IV v3.1)
+# Concurrency window: ±6 hours between the ketone draw and the supporting glucose /
+# pH / bicarbonate rows — same DKA episode, not interpolated across unrelated days.
+# Emit at the ketone charttime; same-time dupes are collapsed by the global dedup.
+ket_pos = lab[lab["itemid"].isin(LAB_KETONE_UR)].copy()
+if not ket_pos.empty:
+    ket_pos["ku_val"] = ket_pos["value"].map(_parse_ku)
+    ket_pos = ket_pos[ket_pos["ku_val"].notna() & (ket_pos["ku_val"] >= 15)][["hadm_id", "charttime"]]
+    ket_pos = ket_pos.rename(columns={"charttime": "ket_time"})
+
+    glu_hi = lab[lab["itemid"].isin(LAB_GLUCOSE) & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")]
+    glu_hi = glu_hi[glu_hi["valuenum"] > 250][["hadm_id", "charttime"]].rename(columns={"charttime": "glu_time"})
+
+    ph_lo = lab[lab["itemid"].isin(LAB_PH) & lab["valuenum"].notna()]
+    ph_lo = ph_lo[(ph_lo["valuenum"] >= 6.5) & (ph_lo["valuenum"] < 7.30)][["hadm_id", "charttime"]].rename(columns={"charttime": "ph_time"})
+
+    hco3_lo = lab[lab["itemid"].isin(LAB_BICARB) & lab["valuenum"].notna() & lab["uom_l"].str.contains("mmol|meq")]
+    hco3_lo = hco3_lo[hco3_lo["valuenum"] < 18][["hadm_id", "charttime"]].rename(columns={"charttime": "hco3_time"})
+
+    WIN = pd.Timedelta(hours=6)
+
+    # ketone + glucose concurrency
+    kg = ket_pos.merge(glu_hi, on="hadm_id")
+    kg = kg[(kg["glu_time"] - kg["ket_time"]).abs() <= WIN][["hadm_id", "ket_time"]].drop_duplicates()
+
+    # ketone + (pH < 7.30 OR bicarb < 18) concurrency
+    kp = ket_pos.merge(ph_lo, on="hadm_id")
+    kp = kp[(kp["ph_time"] - kp["ket_time"]).abs() <= WIN][["hadm_id", "ket_time"]]
+    kb = ket_pos.merge(hco3_lo, on="hadm_id")
+    kb = kb[(kb["hco3_time"] - kb["ket_time"]).abs() <= WIN][["hadm_id", "ket_time"]]
+    kac = pd.concat([kp, kb], ignore_index=True).drop_duplicates()
+
+    # intersection: ketone draws meeting ALL three axes
+    dka = kg.merge(kac, on=["hadm_id", "ket_time"]).drop_duplicates()
+    if not dka.empty:
+        df = make_event_df(dka["hadm_id"], "KETOACIDOSIS", dka["ket_time"], "True")
         all_events.append(filter_window(df))
 
 del lab  # free memory
@@ -1024,6 +1113,6 @@ if missing:
     print(f"\nWARNING: tak-repo concepts with ZERO rows ({len(missing)}):")
     for m in missing:
         print(f"  {m}")
-print(f"\ncontext_data.csv   → {OUT_DIR}/context_data.csv")
-print(f"concept_events.csv → {OUT_DIR}/concept_events.csv")
+print(f"\ncontext_data.csv   -> {OUT_DIR}/context_data.csv")
+print(f"concept_events.csv -> {OUT_DIR}/concept_events.csv")
 print("Done.")
