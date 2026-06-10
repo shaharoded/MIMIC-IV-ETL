@@ -4,7 +4,7 @@
 
 This pipeline transforms **MIMIC-IV v3.1** CSV files into two flat tables that mimic the output of my thesis's OMOP-based data pipeline. The output is used for downstream model testing and improvement.
 
-All concept names in the output **must exactly match** a key from `rawconcept-tak-repo-portable.json`. No other concept names are permitted.
+All concept names in the output **must exactly match** a raw-concept attribute name from `tak-repo-portable.json`. The ETL only uses TAK objects where `family == "raw-concept"` and `derived_from == null`, so parameterized raw concepts are not treated as input concepts.
 
 The companion script is `mimic_pipeline.py` — it currently targets MIMIC-III and must be ported to MIMIC-IV per this spec.
 
@@ -85,6 +85,22 @@ One row per `hadm_id`. All values must be numeric (int or float). Boolean fields
 | `has_diabetes_type2` | `diagnoses_icd` | ICD-9 `250.x0`/`250.x2`, `249.xx`; ICD-10 `E11*` (also `E08*`, `E09*`, `E13*` for secondary diabetes) |
 | `has_hypertension` | `diagnoses_icd` | ICD-9 `401`–`405`; ICD-10 `I10`–`I15` |
 | `has_obesity` | `diagnoses_icd` | ICD-9 `278.0x`; ICD-10 `E66*` |
+| `has_ckd` | `diagnoses_icd` | Chronic kidney disease. ICD-9 `585*`; ICD-10 `N18*`. Excludes `N17` (AKI — captured downstream by the model from raw `CREATININE_SERUM_MEASURE` / `E-GFR_MEASURE`) |
+| `has_chf` | `diagnoses_icd` | Chronic heart failure. ICD-9 `428*`; ICD-10 `I50*` |
+| `has_cad` | `diagnoses_icd` | Chronic ischemic heart disease. ICD-9 `414*`; ICD-10 `I25*`. Excludes acute MI/ACS (`I20`–`I24`) |
+| `has_copd` | `diagnoses_icd` | COPD + emphysema. ICD-9 `491*`, `492*`, `496*`; ICD-10 `J44*`, `J43*` |
+| `has_asthma` | `diagnoses_icd` | ICD-9 `493*`; ICD-10 `J45*` |
+| `has_afib` | `diagnoses_icd` | Atrial fibrillation. ICD-9 `42731`; ICD-10 `I48*` |
+| `has_dyslipidemia` | `diagnoses_icd` | ICD-9 `272*`; ICD-10 `E78*` |
+| `has_stroke_history` | `diagnoses_icd` | Cerebrovascular history. ICD-9 `430`–`438*`; ICD-10 `I60*`–`I69*`, `Z8673` |
+| `has_chronic_liver` | `diagnoses_icd` | NAFLD / cirrhosis. ICD-9 `571*`; ICD-10 `K70*`, `K74*` |
+| `has_atherosclerosis` | `diagnoses_icd` | Chronic atherosclerosis. ICD-9 `440*`; ICD-10 `I70*` |
+| `has_retinopathy_history` | `diagnoses_icd` | Retinopathy/background retinal disease. ICD-9 `362.0*`, `362.1*`; ICD-10 `H35*`, `H36*`. Excludes diabetic complication `E08`-`E13` codes |
+| `has_neuropathy_history` | `diagnoses_icd` | Neuropathy/background nerve disease. ICD-9 `356*`-`358*`; ICD-10 `G60*`-`G63*`. Excludes diabetic complication `E08`-`E13` codes |
+| `has_peripheral_vascular_disease` | `diagnoses_icd` | Peripheral vascular disease. ICD-9 `443*`; ICD-10 `I73*`. Excludes diabetic complication `E08`-`E13` codes |
+| `has_skin_ulcer_history` | `diagnoses_icd` | Skin ulcer/background wound disease. ICD-9 `707*`; ICD-10 `L97*`, `L984*`. Excludes diabetic complication `E08`-`E13` codes |
+
+**Chronic-flag rule.** Background flags in `context_data` are intentionally restricted to *chronic* code ranges so they do not double-count an acute lab-derived event already emitted to `concept_events` (e.g. `N18` chronic CKD goes to context, `N17` AKI is captured as the lab-derived `KIDNEY_COMPLICATION` event). Because `diagnoses_icd` has no per-row timestamp, a flag flips on whenever the code appears in this admission's billing record — including first-time diagnoses made during this stay. This is acceptable for static background features and is the reason these chronic concepts are not duplicated as timestamped events.
 
 > `hospital_expire_flag`, `first_glucose`, and `first_potassium` are **deliberately excluded** from `context_data` — the first two would leak the outcome the downstream model is meant to predict, and the lab values already appear in `concept_events` as time-stamped rows so duplicating them as static context is redundant.
 
@@ -102,14 +118,14 @@ One row per event/measurement. Columns:
 | Column | Type | Description |
 |--------|------|-------------|
 | `PatientId` | int | `admissions.hadm_id` |
-| `ConceptName` | string | Exact name from `rawconcept-tak-repo-portable.json` |
+| `ConceptName` | string | Exact raw-concept attribute name from `tak-repo-portable.json` |
 | `StartDateTime` | datetime | Event timestamp (ISO 8601: `YYYY-MM-DD HH:MM:SS`) |
 | `EndDateTime` | datetime | Always `StartDateTime + 1 second` |
 | `Value` | string/float | Numeric string for measurements; `"True"` for events/indications/drug administrations |
 
 ### Rules
 - Only events falling **within** `[admittime, dischtime or deathtime]` are included.
-- `ConceptName` values must be a **strict subset** of the keys in `rawconcept-tak-repo-portable.json`.
+- `ConceptName` values must be a **strict subset** of raw-concept attribute names in `tak-repo-portable.json`.
 - For measurement concepts, `Value` is the numeric reading.
 - For event/drug/complication concepts, `Value = "True"`. `MEAL` has specific discrete values; `INSULIN_IV_DOSAGE`, `BASAL_DOSAGE`, and `BOLUS_DOSAGE` carry numeric doses.
 - Duplicates (same `PatientId` + `ConceptName` + `StartDateTime`) should be deduplicated (keep first).
@@ -227,7 +243,7 @@ Use `labevents.valuenum` / `chartevents.valuenum` where `hadm_id` is not null an
 | `BODY_TEMPERATURE` | Chart `223761` (°F), `223762` (°C) | chartevents | Convert °F→°C: `(F-32)*5/9` |
 | `WEIGHT_MEASURE` | Chart `226512` (admit wt, kg), `224639` (daily wt, kg), `226531` (wt, lbs) | chartevents | Convert lbs→kg (`*0.453592`) where needed |
 | `BMI_MEASURE` | `omr.csv.gz` `result_name` containing `BMI`, else compute from height + weight | omr / chartevents | kg/m² |
-| `E-GFR_MEASURE` | Lab itemids `50920`, `51770`, `52026` (MDRD-equation variants only — CKD-EPI itemids `53161`/`53180` are excluded) | labevents | mL/min/1.73m². Pull whenever natively present; do NOT compute from creatinine |
+| `E-GFR_MEASURE` | Native lab itemids `50920`, `51770`, `52026` when present; otherwise CKD-EPI 2021 derived from timestamped serum creatinine + age + sex | labevents / derived | mL/min/1.73m². Timestamp is the native eGFR row time or the creatinine draw time |
 | `BASE_GLUCOSE_MEASURE` | Two paths (see rule below) | labevents | mg/dL |
 
 **`BASE_GLUCOSE_MEASURE` rule.** This concept represents the patient's baseline glycemic state. Emit it via either path; if both exist, prefer the HbA1c-derived value (more representative of long-term baseline):
@@ -315,31 +331,70 @@ These map to `concept_events`, **not** `context_data`. The active diagnosis-deri
 | `DIABETES_DIAGNOSIS` | `250*`, `249*` | `E08*`, `E09*`, `E10*`, `E11*`, `E13*` |
 | `HYPERGLYCEMIA` | `79029`, `25000`, `25002` | `R739`, `E0865`, `E0965`, `E1065`, `E1165`, `E1365` |
 | `HYPOGLYCEMIA` | `2510`, `2511`, `2512`, `25080`, `25082` | `E0864`, `E0964`, `E1064`, `E1164`, `E1364`, `E162` |
-| `KETOACIDOSIS` | `2501*` | `E0810`, `E0811`, `E0910`, `E0911`, `E1010`, `E1011`, `E1110`, `E1111`, `E1310`, `E1311` |
+| `KETOACIDOSIS` | gated rule, see below | gated rule, see below |
 | `DIABETIC_COMA` | `2502*`, `2503*` | coma sub-codes ending in `.01` or `.11`: `E0801`, `E0811`, `E0901`, `E0911`, `E1001`, `E1011`, `E1101`, `E1111`, `E1301`, `E1311` |
 | `ACIDOSIS` | `2762` | `E872` |
-| `HYPEROSMOLALITY` | `2760` | `E870` |
+| `HYPEROSMOLALITY` | gated rule, see below | gated rule, see below |
 | `ATHEROSCLEROSIS` | `440*` | `I70*` |
-| `CARDIOVASCULAR_DISORDER` | `410`–`414*`, `427*`, `428*` | `I20`–`I25*`, `I48*`, `I49*`, `I50*` |
+| `CARDIOVASCULAR_DISORDER` | gated rule, see below | gated rule, see below |
 | `KIDNEY_COMPLICATION` | `2504*`, `585*`, `5849` | `N17*`, `N18*`, `N19`, `E0822`, `E0922`, `E1022`, `E1122`, `E1322` |
 | `RETINOPATHY` | `2505*`, `3620`, `36201`–`36215` | diabetic ophthalmic prefixes `E0831*`–`E0839*`, `E0931*`–`E0939*`, `E1031*`–`E1039*`, `E1131*`–`E1139*`, `E1331*`–`E1339*`, plus `H35*`, `H36*` |
 | `NEUROVASCULAR_COMPLICATION` | `2507*`, `44320`–`44329` | diabetic peripheral circulatory prefixes `E0851`, `E0852`, `E0951`, `E0952`, `E1051`, `E1052`, `E1151`, `E1152`, `E1351`, `E1352`, plus `I7320`–`I7329` |
 | `NERVOUS_SYSTEM_DISORDER` | `3572`, `2506*` | diabetic neurologic prefixes `E0840*`–`E0849*`, `E0940*`–`E0949*`, `E1040*`–`E1049*`, `E1140*`–`E1149*`, `E1340*`–`E1349*`, plus `G632` |
 | `SKIN_ULCER` | `2508*`, `707*` | `L97*`, `L984*`, `E0862*`, `E0962*`, `E1062*`, `E1162*`, `E1362*` |
 | `ACUTE_RESPIRATORY_DISORDER` | `51881`, `51882`, `51884` | `J80`, `J9600`–`J9602`, `J9690`–`J9692` |
-| `INFECTION` | `038*`, `99591`, `99592` | `A40*`, `A41*`, `R65*` |
 | `OTHER_COMPLICATION` | `2509*` | `E1069`, `E1169`, `E1369` |
 
 Use `str.startswith()` for prefix matching where a trailing `*` is shown.
+
+**`CARDIOVASCULAR_DISORDER` gated rule.** This event is emitted iff *both* the diagnosis/procedure gate and the troponin signal fire on the admission. One event per admission, timestamped at the first qualifying troponin draw.
+
+- `cv_diagnosis_gate` = any of:
+  - broad CV diagnosis (`diagnoses_icd`): ICD-9 `410`–`414*`, `427*`, `428*`; ICD-10 `I20`–`I25*`, `I48*`, `I49*`, `I50*`
+  - ischemic heart disease / MI (`diagnoses_icd`): ICD-9 `410`–`414*`; ICD-10 `I20`–`I25*`
+  - coronary intervention / revascularization (`procedures_icd`):
+    - PCI — ICD-9 `0066`, `360*`; ICD-10-PCS `0270*`–`0273*`
+    - CABG — ICD-9 `361*`; ICD-10-PCS `0210*`–`0213*`
+    - Cath — ICD-9 `3721`, `3722`, `3723`; ICD-10-PCS `B210*`, `B211*`
+- `troponin_signal` = first `TROPONIN_MEASURE` ≥ 600 ng/L in the admission window (unit handling per the measurement table).
+- `emit CARDIOVASCULAR_DISORDER = cv_diagnosis_gate AND troponin_signal`. Without the diagnosis/procedure gate, a bare troponin ≥ 600 can fire on non-cardiac myocardial injury (severe sepsis, PE, CKD, demand ischemia without coronary disease). The gate restricts the event to patients whose elevated troponin is contextually cardiovascular.
+
+**`KETOACIDOSIS` gated rule.** One event per qualifying ketone draw, timestamped at that draw's `charttime`. All three axes must fire (concurrency window ±6 h between the ketone draw and the supporting glucose / pH / bicarbonate rows, since DM is untimed and is treated as always-on for the admission):
+
+- `diabetes_or_glucose_high` =
+  - `GLUCOSE_MEASURE` ≥ 180 mg/dL within ±6 h of the ketone draw, **OR**
+  - this admission has a `DIABETES_DIAGNOSIS` (ICD-9 `250*`/`249*`; ICD-10 `E08*`/`E09*`/`E10*`/`E11*`/`E13*`)
+- `ketones_high` (row presence implies the criterion is met) =
+  - `KETONES_SERUM_MEASURE` ≥ 31.2 mg/dL (≈ β-hydroxybutyrate 3 mmol/L, the standard DKA cutoff; zero rows in MIMIC-IV v3.1 because no serum ketone itemid exists), **OR**
+  - urine ketones ≥ Small (= 15 on the Negative=0 / Trace=5 / Small=15 / Moderate=40 / Large=80 ladder)
+- `metabolic_acidosis` =
+  - `PH_MEASURE` < 7.30 within ±6 h of the ketone draw, **OR**
+  - `BICARBONATE_MEASURE` < 18 mmol/L within ±6 h of the ketone draw
+- `emit KETOACIDOSIS = diabetes_or_glucose_high AND ketones_high AND metabolic_acidosis`.
+
+Threshold rationale: glucose ≥ 180 (vs the older > 250) catches euglycemic-leaning DKA on SGLT2s and partially-treated presentations; the diabetes-diagnosis substitute covers DKA cases where glucose has already been corrected by the time the labs reach the ketone draw.
+
+**`HYPEROSMOLALITY` gated rule (HHS-like).** This concept is the clinical HHS syndrome, not the loose "any hyperosmolar state" marker. One event per qualifying chemistry draw, timestamped at the draw's `charttime`.
+
+- `effective_osmolality = 2 * SODIUM_MEASURE + GLUCOSE_MEASURE / 18` (no BUN term — effective, not total osmolality). Sodium and glucose must come from the **same** `charttime` (same blood draw, not interpolated).
+- `HYPEROSMOLALITY` (HHS-like) fires iff:
+  - `GLUCOSE_MEASURE` ≥ 600 mg/dL at the draw, **AND**
+  - `effective_osmolality` ≥ 320 mOsm/kg at the draw, **AND**
+  - `NOT strong_ketotic_acidosis` within ±6 h of the draw
+- `strong_ketotic_acidosis` =
+  - (`KETONES_SERUM_MEASURE` ≥ 31.2 mg/dL OR urine ketones ≥ Small) **AND**
+  - (`PH_MEASURE` < 7.30 OR `BICARBONATE_MEASURE` < 18 mmol/L), all within ±6 h of each other.
+
+The not-DKA gate distinguishes HHS from DKA: both can present with severe hyperglycemia and hyperosmolality, but HHS is by definition without significant ketoacidosis. Without this gate the event would fire on DKA cases that also happen to be hyperosmolar, conflating two clinically distinct complications. The loose "any measured/calculated osm > 300" path was removed — it fires on plain dehydration and is not the clinical target.
 
 ---
 
 ## Coverage Goal
 
-The tak-repo currently contains **65 concepts** including `BASE_GLUCOSE_MEASURE`. The pipeline should attempt to emit raw rows for **every** concept that has any signal in MIMIC-IV — do not silently skip a concept just because the mapping is approximate. `KETONES_SERUM_MEASURE` is expected to emit zero rows in MIMIC-IV v3.1 because no serum ketone dictionary item exists. `E-GFR_MEASURE` may also emit zero rows if no native eGFR lab itemid is present.
+The tak-repo currently contains **65 concepts** including `BASE_GLUCOSE_MEASURE`. The pipeline should attempt to emit raw rows for **every** concept that has any signal in MIMIC-IV — do not silently skip a concept just because the mapping is approximate. `KETONES_SERUM_MEASURE` is expected to emit zero rows in MIMIC-IV v3.1 because no serum ketone dictionary item exists. `E-GFR_MEASURE` is derived from timestamped creatinine if native eGFR lab rows are unavailable.
 
 ### Pipeline extension: `BASE_GLUCOSE_MEASURE`
-`BASE_GLUCOSE_MEASURE` is required by this pipeline (see the measurement-mapping table for the derivation rule) and should exist in `rawconcept-tak-repo-portable.json`. The script still treats it as a compatibility extension if an older tak-repo JSON is used; warn only when rows are emitted and the key is missing from the loaded JSON.
+`BASE_GLUCOSE_MEASURE` is required by this pipeline (see the measurement-mapping table for the derivation rule) and should exist as a raw-concept attribute in `tak-repo-portable.json`.
 
 Time-of-day note: MIMIC-IV de-identification shifts each patient's calendar dates by a random per-patient offset but **preserves time-of-day, day-of-week, season, and within-patient intervals**. So the `MEAL` time-of-day heuristic, ICU shift patterns, and night-vs-day labs are all meaningful.
 
@@ -366,7 +421,7 @@ mimic_pipeline.py
 ```
 
 ### Key Constraints
-1. **ConceptName validation and support filtering**: the tak-repo JSON is the output contract. If a tak-repo concept has zero emitted rows, print a warning. If the pipeline emits rows for a concept absent from tak-repo, print a warning and auto-omit those rows before writing `concept_events.csv`. After validation/deduplication, auto-omit concepts with less than 1% patient support and print the omitted concept counts.
+1. **ConceptName validation**: the tak-repo JSON is the output contract. If a tak-repo concept has zero emitted rows, print a warning. If the pipeline emits rows for a concept absent from tak-repo, print a warning and auto-omit those rows before writing `concept_events.csv`. Do not omit valid concepts solely because they have low patient support; downstream models decide how to handle sparse concepts.
 2. **Admission window filtering**: drop any event where `StartDateTime < admittime` or `StartDateTime > max(dischtime, deathtime)`.
 3. **EndDateTime**: always `StartDateTime + pd.Timedelta(seconds=1)`.
 4. **ICD code format**: stored as string without decimal, in both ICD-9 and ICD-10. Always check `icd_version` before applying a pattern.
@@ -409,7 +464,7 @@ mimic-dataset/
 │       ├── d_items.csv.gz
 │       ├── icustays.csv.gz
 │       └── ...
-├── rawconcept-tak-repo-portable.json    ← allowed ConceptName values
+├── tak-repo-portable.json               ← portable TAK repo; raw-concept attributes define allowed ConceptName values
 ├── CLAUDE.md                            ← this file
 ├── mimic_pipeline.py                    ← to be ported MIMIC-III → MIMIC-IV
 └── output/

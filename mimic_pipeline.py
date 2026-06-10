@@ -28,21 +28,26 @@ ROOT     = "c:/Users/shaha/Work/Personal/mimic-dataset"
 MIMIC    = f"{ROOT}/mimic-iv/physionet.org/files/mimiciv/3.1"
 HOSP     = f"{MIMIC}/hosp"
 ICU      = f"{MIMIC}/icu"
-TAK_REPO = f"{ROOT}/rawconcept-tak-repo-portable.json"
+TAK_REPO = f"{ROOT}/tak-repo-portable.json"
 OUT_DIR  = f"{ROOT}/output"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 CHUNK_LAB   = 2_000_000   # labevents.csv.gz is ~2.6GB
 CHUNK_CHART = 5_000_000   # chartevents.csv.gz is ~3.5GB
-MIN_CONCEPT_PATIENT_SUPPORT_PCT = 1.0
+MIN_CONCEPT_PATIENT_SUPPORT_PCT = 0.0
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Valid concepts (from tak-repo + extension)
+# Valid concepts (raw-concept attributes from portable TAK repo)
 # ─────────────────────────────────────────────────────────────────────────────
 with open(TAK_REPO, encoding="utf-8") as f:
     tak = json.load(f)
-TAK_KEYS = set(tak["taks"].keys())
-VALID_CONCEPTS = TAK_KEYS
+RAW_CONCEPT_ATTRIBUTES = {}
+for tak_name, meta in tak["taks"].items():
+    if meta.get("family") != "raw-concept" or meta.get("derived_from") is not None:
+        continue
+    attrs = meta.get("attributes") or [meta.get("name", tak_name)]
+    RAW_CONCEPT_ATTRIBUTES[meta.get("name", tak_name)] = set(attrs)
+VALID_CONCEPTS = set().union(*RAW_CONCEPT_ATTRIBUTES.values()) if RAW_CONCEPT_ATTRIBUTES else set()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Itemid maps — all verified against d_items.csv.gz / d_labitems.csv.gz
@@ -69,7 +74,7 @@ LAB_KETONE_SER = set()                                 # No serum ketone item ex
 LAB_CK         = {50910}                               # Creatine Kinase (CK) — exclude isoenzymes
 LAB_HBA1C      = {50852, 51631, 50854}                 # %A1c, Glycated Hgb, Absolute A1c
 LAB_EGFR       = {50920, 51770, 52026}                 # MDRD only (CKD-EPI variants excluded)
-LAB_OSM        = {50964}                               # Osmolality, measured (mOsm/kg) — used for HYPEROSMOLALITY
+LAB_OSM        = {50964}                               # Osmolality, measured (mOsm/kg) — kept for reference; HYPEROSMOLALITY now uses calculated effective osm only
 # NOTE: Serum ketone lab does NOT exist in MIMIC-IV d_labitems → KETONES_SERUM_MEASURE = 0 rows.
 
 LAB_ITEMIDS_ALL = (
@@ -448,7 +453,6 @@ emit_icd("DIABETES_DIAGNOSIS",        icd9_prefixes=("250", "249"),             
 # emit_icd("NERVOUS_SYSTEM_DISORDER",   ...)
 # emit_icd("SKIN_ULCER",                ...)
 # emit_icd("ACUTE_RESPIRATORY_DISORDER", ...)
-# emit_icd("INFECTION",                 ...)
 # emit_icd("OTHER_COMPLICATION",        ...)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -564,6 +568,46 @@ if not egfr.empty:
     df = plausible(df, "E-GFR_MEASURE")
     all_events.append(filter_window(df))
 
+# Derive CKD-EPI 2021 eGFR from timestamped serum creatinine. This is a
+# measurement at the creatinine draw time, not a static context feature.
+creat_for_egfr = lab[
+    lab["itemid"].isin(LAB_CREAT)
+    & lab["valuenum"].notna()
+    & lab["uom_l"].str.contains("mg/dl", na=False)
+].copy()
+if not creat_for_egfr.empty:
+    creat_for_egfr = creat_for_egfr.merge(
+        adm[["hadm_id", "age_at_admission", "gender"]],
+        on="hadm_id",
+        how="left",
+    )
+    creat_for_egfr = creat_for_egfr[
+        creat_for_egfr["age_at_admission"].notna()
+        & creat_for_egfr["gender"].isin(["F", "M"])
+        & (creat_for_egfr["valuenum"] > 0)
+    ].copy()
+    if not creat_for_egfr.empty:
+        scr = creat_for_egfr["valuenum"].astype(float)
+        female = creat_for_egfr["gender"].eq("F")
+        kappa = np.where(female, 0.7, 0.9)
+        alpha = np.where(female, -0.241, -0.302)
+        ratio = scr / kappa
+        egfr_val = (
+            142.0
+            * np.minimum(ratio, 1.0) ** alpha
+            * np.maximum(ratio, 1.0) ** -1.200
+            * 0.9938 ** creat_for_egfr["age_at_admission"].astype(float)
+            * np.where(female, 1.012, 1.0)
+        )
+        df = make_event_df(
+            creat_for_egfr["hadm_id"],
+            "E-GFR_MEASURE",
+            creat_for_egfr["charttime"],
+            egfr_val.astype(float),
+        )
+        df = plausible(df, "E-GFR_MEASURE")
+        all_events.append(filter_window(df))
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 7b: Lab-derived acute events (timestamped at the lab draw)
 #
@@ -573,19 +617,11 @@ if not egfr.empty:
 # and BICARBONATE_MEASURE are already emitted by Step 7, which is the only input that
 # stage needs from this pipeline.
 #
-# HYPEROSMOLALITY criterion:
-#   Serum osmolality > 300 mOsm/kg (clinical hyperosmolar alarm point). Two paths,
-#   preferring directly measured:
-#     1) Measured osmolality (lab itemid 50964) > 300 mOsm/kg.
-#     2) Calculated osmolality > 300 from a single chemistry draw (same charttime)
-#        using the standard formula:  2*Na + glucose/18 + BUN/2.8
-#        (Rasouli, Clin Chem Lab Med 2011; routine reference range 275–295; >300 is
-#        the typical clinical alarm threshold for true hyperosmolar state.)
-#        Requires Na (mmol/L), glucose (mg/dL), and BUN (mg/dL) all present at the
-#        same charttime — same blood draw, not interpolated.
-#   Every qualifying timepoint is emitted (not just the first) so the downstream
-#   model sees persistence/recurrence. Same-timestamp dupes (measured+calculated
-#   from one draw) are collapsed by the global dedup step.
+# HYPEROSMOLALITY criterion (stricter HHS-like rule, see the dedicated block below):
+#   Glucose >= 600 AND effective_osmolality (2*Na + glucose/18) >= 320 at the same
+#   chemistry draw, AND no strong_ketotic_acidosis (ketones high + low pH/HCO3)
+#   within +-6h of that draw. The loose "any measured osm > 300" path was removed —
+#   it fires on plain dehydration and is not the clinical complication of interest.
 #
 # CARDIOVASCULAR_DISORDER criterion (also lab-derived, below `del lab`):
 #   See block under troponin handling.
@@ -605,91 +641,179 @@ hco3_low = lab[lab["itemid"].isin(LAB_BICARB) & lab["valuenum"].notna()].copy()
 hco3_low = hco3_low[hco3_low["uom_l"].str.contains("mmol|meq")]
 hco3_low = hco3_low[hco3_low["valuenum"] <= 10][["hadm_id", "charttime"]].rename(columns={"charttime": "hco3_time"})
 
-# HYPEROSMOLALITY — every measured osmolality > 300, plus every calculated > 300 from same-draw Na+glucose+BUN.
-# 300 is the clinical alarm point for hyperosmolar state; 295 is the upper edge of normal and over-fires.
-OSM_HI_THRESHOLD = 300.0
-osm_meas = lab[lab["itemid"].isin(LAB_OSM) & lab["valuenum"].notna()].copy()
-osm_meas = osm_meas[osm_meas["valuenum"] > OSM_HI_THRESHOLD]
-if not osm_meas.empty:
-    df = make_event_df(osm_meas["hadm_id"], "HYPEROSMOLALITY", osm_meas["charttime"], "True")
-    all_events.append(filter_window(df))
-
-# Calculated path — emit at every chemistry draw where osm_calc > 300. Dedup of same-timestamp
-# rows (e.g. a draw that ALSO has a measured osmolality) is handled by the global dedup step.
-na   = lab[lab["itemid"].isin(LAB_SODIUM)   & lab["valuenum"].notna() & lab["uom_l"].str.contains("mmol|meq")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "na"})
-glu  = lab[lab["itemid"].isin(LAB_GLUCOSE)  & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "glu"})
-bun  = lab[lab["itemid"].isin(LAB_UREA)     & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "bun"})
-draw = na.merge(glu, on=["hadm_id", "charttime"]).merge(bun, on=["hadm_id", "charttime"])
-if not draw.empty:
-    draw["osm_calc"] = 2 * draw["na"] + draw["glu"] / 18.0 + draw["bun"] / 2.8
-    draw_hi = draw[draw["osm_calc"] > OSM_HI_THRESHOLD]
-    if not draw_hi.empty:
-        df = make_event_df(draw_hi["hadm_id"], "HYPEROSMOLALITY", draw_hi["charttime"], "True")
-        all_events.append(filter_window(df))
-
-# CARDIOVASCULAR_DISORDER — every troponin >= 600 ng/L per admission
+# HYPEROSMOLALITY — gated HHS-like rule, timestamped at the qualifying chemistry draw.
 #
-# Criterion: high-sensitivity troponin (T or I) >= 600 ng/L on any lab draw.
-#   - URL (99th percentile) for hs-cTn is ~14-40 ng/L (assay-dependent).
-#   - >=600 ng/L is well above MI/ACS diagnostic cutoffs and captures clinically
-#     significant myocardial injury (large MI, severe demand ischemia, myocarditis,
-#     cardiogenic shock), not subtle troponin leak.
-#   - We mirror the unit handling of TROPONIN_MEASURE: ng/mL rows are converted to
-#     ng/L (*1000); ng/L rows are kept as-is. Other units are dropped.
-# Caveat (for downstream interpretation): troponin is order-driven in MIMIC — only
-# ~26% of admissions ever get one drawn — so this concept's absence does not imply
-# absence of cardiovascular disease, only absence of clinical suspicion + measurement.
+# Rule (HHS clinical syndrome, not the loose "any hyperosmolar state" marker):
+#   effective_osmolality = 2 * SODIUM_MEASURE + GLUCOSE_MEASURE / 18    (no BUN — effective, not total)
+#   HHS-like =
+#       GLUCOSE_MEASURE >= 600 mg/dL                                                            (severe hyperglycemia)
+#       AND effective_osmolality >= 320 mOsm/kg                                                 (hyperosmolar)
+#       AND NOT strong_ketotic_acidosis  (within +-6h of the chemistry draw)                    (rules out DKA)
+#   strong_ketotic_acidosis =
+#       (KETONES_SERUM_MEASURE >= 31.2 mg/dL OR urine ketones >= Small)
+#       AND (PH_MEASURE < 7.30 OR BICARBONATE_MEASURE < 18 mmol/L)
+#
+# Why HHS-like instead of "any measured osm > 300": pure hyperosmolality fires on plain
+# dehydration / hypernatremia of any cause. The clinically relevant complication is the
+# HHS syndrome — severe hyperglycemia + effective hyperosmolality + absence of strong
+# ketoacidosis — which is what downstream prediction targets.
+#
+# Emission: one row per qualifying same-charttime Na+glucose draw, at that charttime.
+
+# Same-draw Na + glucose (required pair; BUN is not part of effective osmolality).
+na  = lab[lab["itemid"].isin(LAB_SODIUM)  & lab["valuenum"].notna() & lab["uom_l"].str.contains("mmol|meq")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "na"})
+glu = lab[lab["itemid"].isin(LAB_GLUCOSE) & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")][["hadm_id", "charttime", "valuenum"]].rename(columns={"valuenum": "glu"})
+draw = na.merge(glu, on=["hadm_id", "charttime"])
+if not draw.empty:
+    draw["eff_osm"] = 2 * draw["na"] + draw["glu"] / 18.0
+    cand = draw[(draw["glu"] >= 600) & (draw["eff_osm"] >= 320)][["hadm_id", "charttime"]].rename(columns={"charttime": "draw_time"})
+
+    if not cand.empty:
+        # Build strong_ketotic_acidosis episodes: ketone-high draws paired with low pH OR low HCO3 within +-6h.
+        ket_se = lab[lab["itemid"].isin(LAB_KETONE_SER) & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")]
+        ket_se = ket_se[ket_se["valuenum"] >= 31.2][["hadm_id", "charttime"]]
+        ket_u = lab[lab["itemid"].isin(LAB_KETONE_UR)].copy()
+        if not ket_u.empty:
+            ket_u["ku_val"] = ket_u["value"].map(_parse_ku)
+            ket_u = ket_u[ket_u["ku_val"].notna() & (ket_u["ku_val"] >= 15)][["hadm_id", "charttime"]]
+        ket_all = pd.concat([ket_se, ket_u], ignore_index=True).drop_duplicates().rename(columns={"charttime": "ket_time"})
+
+        ph_low_hhs = lab[lab["itemid"].isin(LAB_PH) & lab["valuenum"].notna()]
+        ph_low_hhs = ph_low_hhs[(ph_low_hhs["valuenum"] >= 6.5) & (ph_low_hhs["valuenum"] < 7.30)][["hadm_id", "charttime"]].rename(columns={"charttime": "ph_time"})
+        hco3_low_hhs = lab[lab["itemid"].isin(LAB_BICARB) & lab["valuenum"].notna() & lab["uom_l"].str.contains("mmol|meq")]
+        hco3_low_hhs = hco3_low_hhs[hco3_low_hhs["valuenum"] < 18][["hadm_id", "charttime"]].rename(columns={"charttime": "hco3_time"})
+
+        WIN = pd.Timedelta(hours=6)
+
+        # ketone + acidosis concurrency -> strong_ketotic_acidosis events at ket_time.
+        skap = ket_all.merge(ph_low_hhs, on="hadm_id")
+        skap = skap[(skap["ph_time"] - skap["ket_time"]).abs() <= WIN][["hadm_id", "ket_time"]]
+        skab = ket_all.merge(hco3_low_hhs, on="hadm_id")
+        skab = skab[(skab["hco3_time"] - skab["ket_time"]).abs() <= WIN][["hadm_id", "ket_time"]]
+        ska = pd.concat([skap, skab], ignore_index=True).drop_duplicates()
+
+        # Exclude candidates that have any strong_ketotic_acidosis episode within +-6h of the draw.
+        if not ska.empty:
+            joined = cand.merge(ska, on="hadm_id", how="left")
+            joined["ska_near"] = (joined["ket_time"] - joined["draw_time"]).abs() <= WIN
+            blocked = joined[joined["ska_near"] == True][["hadm_id", "draw_time"]].drop_duplicates()
+            cand = cand.merge(blocked, on=["hadm_id", "draw_time"], how="left", indicator=True)
+            cand = cand[cand["_merge"] == "left_only"][["hadm_id", "draw_time"]]
+
+        if not cand.empty:
+            df = make_event_df(cand["hadm_id"], "HYPEROSMOLALITY", cand["draw_time"], "True")
+            all_events.append(filter_window(df))
+
+# CARDIOVASCULAR_DISORDER — gated rule, one event per qualifying admission.
+#
+# Rule:
+#   cv_diagnosis_gate = any of (per this admission's billing record)
+#       - broad CV/arrhythmia/HF diagnosis: ICD-9 410-414, 427, 428;
+#                                            ICD-10 I20-I25, I48, I49, I50
+#       - ischemic heart disease / MI:       ICD-9 410-414; ICD-10 I20-I25
+#       - coronary intervention evidence (procedures_icd):
+#               PCI    — ICD-9 00.66, 36.0*; ICD-10-PCS 0270*-0273*
+#               CABG   — ICD-9 36.1*;        ICD-10-PCS 0210*-0213*
+#               cath   — ICD-9 37.21-37.23;  ICD-10-PCS B210*, B211*
+#   troponin_signal   = first TROPONIN_MEASURE >= 600 ng/L in admission window
+#   emit CARDIOVASCULAR_DISORDER iff cv_diagnosis_gate AND troponin_signal.
+#
+# The diagnosis gate alone has no real timestamp, and a bare troponin >= 600 alone
+# can fire on non-cardiac myocardial injury (severe sepsis, PE, CKD, demand ischemia
+# without coronary disease). Gating troponin by a CV diagnosis/procedure restricts the
+# event to patients whose elevated troponin is contextualised as cardiovascular.
+# Timestamp: the first qualifying troponin draw (preserves real in-hospital onset).
+#
+# Unit handling mirrors TROPONIN_MEASURE: ng/mL -> ng/L (*1000); ng/L kept as-is.
+
+# Diagnosis side of the gate (from diag, already loaded).
+cv_diag_hadm  = icd_hadm_set(
+    icd9_prefixes=("410", "411", "412", "413", "414", "427", "428"),
+    icd10_prefixes=("I20", "I21", "I22", "I23", "I24", "I25", "I48", "I49", "I50"),
+)
+ihd_diag_hadm = icd_hadm_set(
+    icd9_prefixes=("410", "411", "412", "413", "414"),
+    icd10_prefixes=("I20", "I21", "I22", "I23", "I24", "I25"),
+)
+
+# Procedure side of the gate — load procedures_icd lazily (only consumer in the pipeline).
+proc = load_gz(f"{HOSP}/procedures_icd.csv.gz", dtype={"icd_code": str})
+proc["icd_code"] = proc["icd_code"].astype(str).str.strip()
+proc["icd_version"] = proc["icd_version"].astype(int)
+def proc_hadm_set(icd9_prefixes=(), icd10_prefixes=()):
+    """Mirror of icd_hadm_set for procedures_icd."""
+    m9  = (proc["icd_version"] == 9)  & proc["icd_code"].str.startswith(tuple(icd9_prefixes))  if icd9_prefixes  else pd.Series(False, index=proc.index)
+    m10 = (proc["icd_version"] == 10) & proc["icd_code"].str.startswith(tuple(icd10_prefixes)) if icd10_prefixes else pd.Series(False, index=proc.index)
+    return set(proc.loc[m9 | m10, "hadm_id"].dropna().astype(int).tolist())
+revasc_hadm = proc_hadm_set(
+    icd9_prefixes=("0066", "360", "361", "3721", "3722", "3723"),                     # PCI, CABG, cath
+    icd10_prefixes=("0270", "0271", "0272", "0273", "0210", "0211", "0212", "0213", "B210", "B211"),
+)
+del proc
+
+cv_gate_hadm = cv_diag_hadm | ihd_diag_hadm | revasc_hadm
+
+# Troponin side of the gate — first qualifying draw per admission.
 trop = lab[lab["itemid"].isin(LAB_TROPONIN) & lab["valuenum"].notna()].copy()
 if not trop.empty:
     keep = trop["uom_l"].apply(lambda u: ("ng/ml" in u) or ("ng/l" in u))
     trop = trop[keep].copy()
     trop["v_ngL"] = trop.apply(lambda r: r["valuenum"] * 1000.0 if "ng/ml" in r["uom_l"] else r["valuenum"], axis=1)
-    trop_hi = trop[trop["v_ngL"] >= 600]
+    trop_hi = trop[(trop["v_ngL"] >= 600) & trop["hadm_id"].isin(cv_gate_hadm)]
     if not trop_hi.empty:
-        df = make_event_df(trop_hi["hadm_id"], "CARDIOVASCULAR_DISORDER", trop_hi["charttime"], "True")
+        first_trop = trop_hi.sort_values("charttime").drop_duplicates("hadm_id", keep="first")
+        df = make_event_df(first_trop["hadm_id"], "CARDIOVASCULAR_DISORDER", first_trop["charttime"], "True")
         all_events.append(filter_window(df))
 
-# KIDNEY_COMPLICATION — lab-derived, time-stamped at the qualifying draw.
-#
-# Criteria (any one, evaluated per lab row):
-#   - Serum creatinine >= 2.0 mg/dL  (probable AKI / advanced CKD; KDIGO AKI stage 2+)
-#   - eGFR < 30 mL/min/1.73m^2       (CKD stage 4 or worse)
-# KDIGO rise-based criteria (>=0.3 mg/dL absolute, >=1.5x relative) are NOT emitted here:
-# TAK computes them downstream as parameterized concepts from CREATININE_SERUM_MEASURE,
-# which is already emitted in Step 7. Emitting Value="True" rows here covers the A1
-# attribute of the KIDNEY_COMPLICATION_EVENT rule so the OR clause can fire when the
-# raw creatinine is itself the trigger.
-creat_hi = lab[lab["itemid"].isin(LAB_CREAT) & lab["valuenum"].notna()].copy()
-creat_hi = creat_hi[creat_hi["uom_l"].str.contains("mg/dl")]
-creat_hi = creat_hi[(creat_hi["valuenum"] >= 2.0) & (creat_hi["valuenum"] <= 30)]
-if not creat_hi.empty:
-    df = make_event_df(creat_hi["hadm_id"], "KIDNEY_COMPLICATION", creat_hi["charttime"], "True")
-    all_events.append(filter_window(df))
+# KIDNEY_COMPLICATION is intentionally NOT emitted here. The downstream model computes
+# it from raw CREATININE_SERUM_MEASURE and E-GFR_MEASURE (both already emitted in Step 7),
+# so deriving a Value="True" event in the ETL would duplicate work that belongs in the
+# model's data-processing layer.
 
-egfr_lo = lab[lab["itemid"].isin(LAB_EGFR) & lab["valuenum"].notna()].copy()
-egfr_lo = egfr_lo[(egfr_lo["valuenum"] >= 0) & (egfr_lo["valuenum"] < 30)]
-if not egfr_lo.empty:
-    df = make_event_df(egfr_lo["hadm_id"], "KIDNEY_COMPLICATION", egfr_lo["charttime"], "True")
-    all_events.append(filter_window(df))
-
-# KETOACIDOSIS — lab-derived, time-stamped at the qualifying ketone draw.
+# KETOACIDOSIS — gated rule, timestamped at the qualifying ketone draw.
 #
-# ADA diagnostic criteria for DKA (all concurrent):
-#   1. Hyperglycemia:   glucose > 250 mg/dL
-#   2. Acidosis:        arterial pH < 7.30  OR  serum bicarbonate < 18 mmol/L
-#   3. Ketonemia:       ketones present (urine ketones >= Small (15 on our ladder);
-#                       serum ketones unavailable in MIMIC-IV v3.1)
-# Concurrency window: ±6 hours between the ketone draw and the supporting glucose /
-# pH / bicarbonate rows — same DKA episode, not interpolated across unrelated days.
-# Emit at the ketone charttime; same-time dupes are collapsed by the global dedup.
-ket_pos = lab[lab["itemid"].isin(LAB_KETONE_UR)].copy()
+# Rule (all three must fire):
+#   diabetes_or_glucose_high =
+#       GLUCOSE_MEASURE >= 180 mg/dL within +-6h of the ketone draw
+#       OR patient has a DIABETES_DIAGNOSIS billed on this admission (untimed -> always-on)
+#   ketones_high =
+#       KETONES_SERUM_MEASURE >= 31.2 mg/dL                                                   (no serum ketone itemid in MIMIC-IV v3.1)
+#       OR urine ketones >= Small (15 on the Negative=0/Trace=5/Small=15/Moderate=40/Large=80 ladder)
+#   metabolic_acidosis =
+#       PH_MEASURE < 7.30 within +-6h of the ketone draw
+#       OR BICARBONATE_MEASURE < 18 mmol/L within +-6h of the ketone draw
+# Emit one row per qualifying ketone draw at its charttime. Same-time duplicates
+# (a serum + urine ketone hit at the same minute) are collapsed by global dedup.
+#
+# Threshold notes:
+#   - Glucose >= 180 is the "hyperglycemia" threshold (vs the older > 250 used historically
+#     for severe DKA) — picks up euglycemic-leaning DKA on SGLT2s and partial-treatment.
+#   - Serum ketone 31.2 mg/dL ~= beta-hydroxybutyrate 3 mmol/L (MW 104.1), the standard
+#     DKA diagnostic cutoff.
+#   - DIABETES_DIAGNOSIS substitutes for the glucose criterion because a diabetic with
+#     ketones+acidosis is DKA even if glucose has already been corrected on arrival.
+
+# Diabetes-diagnosis side (untimed; per CLAUDE.md DIABETES_DIAGNOSIS mapping).
+dka_dm_hadm = icd_hadm_set(
+    icd9_prefixes=("250", "249"),
+    icd10_prefixes=("E08", "E09", "E10", "E11", "E13"),
+)
+
+# Ketone draws — union of serum (>=31.2 mg/dL) and urine (>=Small/15 on qualitative ladder).
+ket_ser = lab[lab["itemid"].isin(LAB_KETONE_SER) & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")]
+ket_ser = ket_ser[ket_ser["valuenum"] >= 31.2][["hadm_id", "charttime"]]
+
+ket_ur = lab[lab["itemid"].isin(LAB_KETONE_UR)].copy()
+if not ket_ur.empty:
+    ket_ur["ku_val"] = ket_ur["value"].map(_parse_ku)
+    ket_ur = ket_ur[ket_ur["ku_val"].notna() & (ket_ur["ku_val"] >= 15)][["hadm_id", "charttime"]]
+
+ket_pos = pd.concat([ket_ser, ket_ur], ignore_index=True).drop_duplicates()
 if not ket_pos.empty:
-    ket_pos["ku_val"] = ket_pos["value"].map(_parse_ku)
-    ket_pos = ket_pos[ket_pos["ku_val"].notna() & (ket_pos["ku_val"] >= 15)][["hadm_id", "charttime"]]
     ket_pos = ket_pos.rename(columns={"charttime": "ket_time"})
 
     glu_hi = lab[lab["itemid"].isin(LAB_GLUCOSE) & lab["valuenum"].notna() & lab["uom_l"].str.contains("mg/dl")]
-    glu_hi = glu_hi[glu_hi["valuenum"] > 250][["hadm_id", "charttime"]].rename(columns={"charttime": "glu_time"})
+    glu_hi = glu_hi[glu_hi["valuenum"] >= 180][["hadm_id", "charttime"]].rename(columns={"charttime": "glu_time"})
 
     ph_lo = lab[lab["itemid"].isin(LAB_PH) & lab["valuenum"].notna()]
     ph_lo = ph_lo[(ph_lo["valuenum"] >= 6.5) & (ph_lo["valuenum"] < 7.30)][["hadm_id", "charttime"]].rename(columns={"charttime": "ph_time"})
@@ -699,19 +823,21 @@ if not ket_pos.empty:
 
     WIN = pd.Timedelta(hours=6)
 
-    # ketone + glucose concurrency
+    # diabetes_or_glucose_high: glucose >= 180 within window OR DIABETES_DIAGNOSIS present.
     kg = ket_pos.merge(glu_hi, on="hadm_id")
     kg = kg[(kg["glu_time"] - kg["ket_time"]).abs() <= WIN][["hadm_id", "ket_time"]].drop_duplicates()
+    kdm = ket_pos[ket_pos["hadm_id"].isin(dka_dm_hadm)][["hadm_id", "ket_time"]]
+    diab_glu_ok = pd.concat([kg, kdm], ignore_index=True).drop_duplicates()
 
-    # ketone + (pH < 7.30 OR bicarb < 18) concurrency
+    # metabolic_acidosis: pH < 7.30 OR HCO3 < 18 within window of the ketone draw.
     kp = ket_pos.merge(ph_lo, on="hadm_id")
     kp = kp[(kp["ph_time"] - kp["ket_time"]).abs() <= WIN][["hadm_id", "ket_time"]]
     kb = ket_pos.merge(hco3_lo, on="hadm_id")
     kb = kb[(kb["hco3_time"] - kb["ket_time"]).abs() <= WIN][["hadm_id", "ket_time"]]
-    kac = pd.concat([kp, kb], ignore_index=True).drop_duplicates()
+    acid_ok = pd.concat([kp, kb], ignore_index=True).drop_duplicates()
 
-    # intersection: ketone draws meeting ALL three axes
-    dka = kg.merge(kac, on=["hadm_id", "ket_time"]).drop_duplicates()
+    # Intersection: ketone draws meeting both axes (ketones already satisfied by row existence).
+    dka = diab_glu_ok.merge(acid_ok, on=["hadm_id", "ket_time"]).drop_duplicates()
     if not dka.empty:
         df = make_event_df(dka["hadm_id"], "KETOACIDOSIS", dka["ket_time"], "True")
         all_events.append(filter_window(df))
@@ -1082,10 +1208,45 @@ ob_hadm  = icd_hadm_set(
     icd10_prefixes=("E66",),
 )
 
+# Chronic background comorbidities. These are patient-history features (not in-hospital
+# outcomes), so the untimed nature of ICD billing codes is acceptable here even though
+# the same untimed-ness disqualifies them from concept_events. Each flag is chosen to be
+# CHRONIC (e.g. N18 CKD, not N17 AKI) so it doesn't double-count an acute lab-derived
+# event that already lives in concept_events.
+ckd_hadm  = icd_hadm_set(icd9_prefixes=("585",),                       icd10_prefixes=("N18",))                                       # chronic kidney disease (excludes N17 AKI)
+chf_hadm  = icd_hadm_set(icd9_prefixes=("428",),                       icd10_prefixes=("I50",))                                       # chronic heart failure
+cad_hadm  = icd_hadm_set(icd9_prefixes=("414",),                       icd10_prefixes=("I25",))                                       # chronic ischemic heart disease (excludes acute I20-I24)
+copd_hadm = icd_hadm_set(icd9_prefixes=("491", "492", "496"),          icd10_prefixes=("J44", "J43"))                                 # COPD + emphysema
+asth_hadm = icd_hadm_set(icd9_prefixes=("493",),                       icd10_prefixes=("J45",))                                       # asthma
+afib_hadm = icd_hadm_set(icd9_prefixes=("42731",),                     icd10_prefixes=("I48",))                                       # atrial fibrillation
+dysl_hadm = icd_hadm_set(icd9_prefixes=("272",),                       icd10_prefixes=("E78",))                                       # dyslipidemia
+strk_hadm = icd_hadm_set(icd9_prefixes=("430", "431", "432", "433", "434", "435", "436", "437", "438"),
+                         icd10_prefixes=("I60", "I61", "I62", "I63", "I64", "I65", "I66", "I67", "I68", "I69", "Z8673"))             # cerebrovascular history
+livr_hadm = icd_hadm_set(icd9_prefixes=("571",),                       icd10_prefixes=("K70", "K74"))                                 # chronic liver disease (NAFLD/cirrhosis)
+athr_hadm = icd_hadm_set(icd9_prefixes=("440",),                       icd10_prefixes=("I70",))                                       # chronic atherosclerosis
+reti_hadm = icd_hadm_set(icd9_prefixes=("3620", "3621"),               icd10_prefixes=("H35", "H36"))                                 # retinopathy/background retinal disease; excludes diabetic E08-E13 complication codes
+neur_hadm = icd_hadm_set(icd9_prefixes=("356", "357", "358"),          icd10_prefixes=("G60", "G61", "G62", "G63"))                    # neuropathy/background nerve disease; excludes diabetic E08-E13 complication codes
+pvd_hadm  = icd_hadm_set(icd9_prefixes=("443",),                       icd10_prefixes=("I73",))                                       # peripheral vascular disease; excludes diabetic E08-E13 complication codes
+ulcr_hadm = icd_hadm_set(icd9_prefixes=("707",),                       icd10_prefixes=("L97", "L984"))                                # skin ulcer/background wound disease; excludes diabetic E08-E13 complication codes
+
 context["has_diabetes_type1"] = context["PatientId"].isin(t1_hadm).astype(int)
 context["has_diabetes_type2"] = context["PatientId"].isin(t2_hadm).astype(int)
 context["has_hypertension"]   = context["PatientId"].isin(htn_hadm).astype(int)
 context["has_obesity"]        = context["PatientId"].isin(ob_hadm).astype(int)
+context["has_ckd"]            = context["PatientId"].isin(ckd_hadm).astype(int)
+context["has_chf"]            = context["PatientId"].isin(chf_hadm).astype(int)
+context["has_cad"]            = context["PatientId"].isin(cad_hadm).astype(int)
+context["has_copd"]           = context["PatientId"].isin(copd_hadm).astype(int)
+context["has_asthma"]         = context["PatientId"].isin(asth_hadm).astype(int)
+context["has_afib"]           = context["PatientId"].isin(afib_hadm).astype(int)
+context["has_dyslipidemia"]   = context["PatientId"].isin(dysl_hadm).astype(int)
+context["has_stroke_history"] = context["PatientId"].isin(strk_hadm).astype(int)
+context["has_chronic_liver"]  = context["PatientId"].isin(livr_hadm).astype(int)
+context["has_atherosclerosis"] = context["PatientId"].isin(athr_hadm).astype(int)
+context["has_retinopathy_history"] = context["PatientId"].isin(reti_hadm).astype(int)
+context["has_neuropathy_history"] = context["PatientId"].isin(neur_hadm).astype(int)
+context["has_peripheral_vascular_disease"] = context["PatientId"].isin(pvd_hadm).astype(int)
+context["has_skin_ulcer_history"] = context["PatientId"].isin(ulcr_hadm).astype(int)
 
 # Median-impute age (others are already 0/1)
 context["age_at_admission"] = context["age_at_admission"].fillna(context["age_at_admission"].median()).round(1)
@@ -1093,6 +1254,10 @@ context["age_at_admission"] = context["age_at_admission"].fillna(context["age_at
 context_out = context[[
     "PatientId", "age_at_admission", "gender", "admission_type",
     "has_diabetes_type1", "has_diabetes_type2", "has_hypertension", "has_obesity",
+    "has_ckd", "has_chf", "has_cad", "has_copd", "has_asthma", "has_afib",
+    "has_dyslipidemia", "has_stroke_history", "has_chronic_liver",
+    "has_atherosclerosis", "has_retinopathy_history", "has_neuropathy_history",
+    "has_peripheral_vascular_disease", "has_skin_ulcer_history",
 ]]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1112,11 +1277,16 @@ print(f"concept_events total rows:   {len(concept_events):,}")
 print("\nRows per concept:")
 for name, cnt in concept_events.groupby("ConceptName").size().sort_values(ascending=False).items():
     print(f"  {name:42s} {cnt:>10,}")
-missing = sorted(TAK_KEYS - set(concept_events["ConceptName"].unique()))
-if missing:
-    print(f"\nWARNING: tak-repo concepts with ZERO rows ({len(missing)}):")
-    for m in missing:
-        print(f"  {m}")
+emitted_concepts = set(concept_events["ConceptName"].unique())
+missing_raw_concepts = {
+    raw_name: sorted(attrs)
+    for raw_name, attrs in RAW_CONCEPT_ATTRIBUTES.items()
+    if emitted_concepts.isdisjoint(attrs)
+}
+if missing_raw_concepts:
+    print(f"\nWARNING: raw concepts with ZERO rows across all valid attributes ({len(missing_raw_concepts)}):")
+    for raw_name, attrs in sorted(missing_raw_concepts.items()):
+        print(f"  {raw_name}: {', '.join(attrs)}")
 print(f"\ncontext_data.csv   -> {OUT_DIR}/context_data.csv")
 print(f"concept_events.csv -> {OUT_DIR}/concept_events.csv")
 print("Done.")
