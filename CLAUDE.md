@@ -49,7 +49,7 @@ Root: `mimic-iv/physionet.org/files/mimiciv/3.1/`
 Only include admissions (`hadm_id`) that satisfy **all** of the following:
 1. Present in `admissions.csv.gz` with a valid `admittime`
 2. Have either a valid `dischtime` (release) **or** a `deathtime` / `hospital_expire_flag=1` (death)
-3. Admission window is at least 48 hours and no more than 14 days (336 hours). If the patient was released from this admission and died (per `patients.dod`) within 30 days of `dischtime`, recast the admission terminus as DEATH at `dod` (emit `DEATH` instead of `RELEASE`).
+3. Admission window is at least 48 hours and no more than 14 days (336 hours). If the patient was released from this admission and died (per `patients.dod`) within 30 days of `dischtime`, recast the admission terminus as DEATH at `dischtime` (emit `DEATH` instead of `RELEASE`).
 4. Have at least 2 glucose measurements (ConceptName=`GLUCOSE_MEASURE`) OR a diabetes diagnosis within the first 48 hours of the admission window
 5. Only adults (18+ at admission). Exclude gestational diabetes diagnoses (ICD-10 `O24*`, ICD-9 `648.8*`).
 6. Only inpatients who actually stayed in the ICU — the admission must have **at least one row in `icustays.csv.gz`**. This is what makes the "actual administered medication & dose" data available, since dosage is only recorded in `icu/inputevents.csv.gz`.
@@ -197,7 +197,7 @@ All other `*_BITZUA` concepts carry `Value="True"` (no numeric dose) — no unit
 
 **DEATH / RELEASE terminus rule.** Decide per admission in this order:
 1. If `hospital_expire_flag = 1` → emit `DEATH` at `deathtime` (or at `dischtime` if `deathtime` is null). No `RELEASE`.
-2. Else if `patients.dod` is non-null and `dod` falls within `[dischtime, dischtime + 30 days]` → emit `DEATH` at `dod`. No `RELEASE`. (Within-30-day mortality after discharge is treated as the outcome of this admission.) Note: `dod` may fall outside `[admittime, dischtime]`, so the admission-window filter in Step 4 must allow this exception.
+2. Else if `patients.dod` is non-null and `dod` falls within `[dischtime, dischtime + 30 days]` → emit `DEATH` at `dischtime`. No `RELEASE`. (Within-30-day post-discharge mortality is treated as the outcome of this admission and materialised at the discharge timestamp so the event lies inside `[admittime, dischtime]`.)
 3. Else → emit `RELEASE` at `dischtime`. No `DEATH`.
 | `MEAL` | `inputevents` itemid `226452` (PO Intake) and `226377` (PACU PO Intake) | See meal-subtype rule below |
 

@@ -370,7 +370,7 @@ def compute_terminus(row):
     """
     Returns (terminus_type, terminus_time). Per CLAUDE.md:
       1) hospital_expire_flag=1 → DEATH at deathtime (or dischtime if null)
-      2) dod within [dischtime, dischtime+30d] → DEATH at dod
+      2) dod within [dischtime, dischtime+30d] → DEATH at dischtime
       3) else RELEASE at dischtime
     """
     if row["hospital_expire_flag"] == 1:
@@ -379,14 +379,13 @@ def compute_terminus(row):
     dod = row["dod"]
     disch = row["dischtime"]
     if pd.notna(dod) and pd.notna(disch) and disch <= dod <= disch + pd.Timedelta(days=30):
-        return ("DEATH", dod)
+        return ("DEATH", disch)
     return ("RELEASE", disch)
 
 term = adm.apply(compute_terminus, axis=1, result_type="expand")
 term.columns = ["terminus_type", "terminus_time"]
 adm = pd.concat([adm.reset_index(drop=True), term.reset_index(drop=True)], axis=1)
 
-# end_time for window filtering: stretch to terminus_time so 30d-post-discharge DEATH fits
 adm["end_time"] = adm[["end_time_raw", "terminus_time"]].max(axis=1)
 adm["end_time"] = pd.to_datetime(adm["end_time"])
 
